@@ -2,6 +2,7 @@ import { DataProvider, useData } from './context/DataContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import WatchlistTable from './components/WatchlistTable';
+import ErrorBoundary from './components/ErrorBoundary';
 import './styles/global.css';
 import './App.css';
 
@@ -129,9 +130,11 @@ VITE_ALPACA_DATA_FEED=iex
  */
 function App() {
   return (
-    <DataProvider>
-      <AppContent />
-    </DataProvider>
+    <ErrorBoundary>
+      <DataProvider>
+        <AppContent />
+      </DataProvider>
+    </ErrorBoundary>
   );
 }
 

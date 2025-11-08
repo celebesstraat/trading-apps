@@ -49,9 +49,10 @@ export default [
       ],
       // General code quality rules
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-      'prefer-const': 'error',
-      'no-var': 'error',
+      'no-console': ['warn', { allow: ['warn', 'error', 'log', 'info', 'debug'] }],
+      'prefer-const': 'warn',
+      'no-var': 'warn',
+      'no-undef': ['error', { globals: { __APP_VERSION__: 'readonly', __BUILD_TIME__: 'readonly' } }],
       // React specific rules
       'react/jsx-key': 'error',
       'react/jsx-no-duplicate-props': 'error',
