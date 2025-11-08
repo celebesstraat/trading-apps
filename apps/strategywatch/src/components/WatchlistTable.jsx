@@ -10,11 +10,13 @@ import './WatchlistTable.css';
  * @param {string[]} props.tickers Array of ticker symbols
  * @param {object} props.pricesMap Map of ticker -> price data
  * @param {object} props.movingAveragesMap Map of ticker -> moving averages
+ * @param {object} props.orb5mDataMap Map of ticker -> 5m ORB data
  */
 export function WatchlistTable({
   tickers,
   pricesMap,
-  movingAveragesMap
+  movingAveragesMap,
+  orb5mDataMap = {}
 }) {
   const [sortColumn, setSortColumn] = useState('10d'); // Default sort by 10D EMA
   const [sortDirection, setSortDirection] = useState('desc');
@@ -75,9 +77,34 @@ export function WatchlistTable({
           aValue = getPercentDistance(a, 'sma100');
           bValue = getPercentDistance(b, 'sma100');
           break;
-        case '200d':
-          aValue = getPercentDistance(a, 'sma200');
-          bValue = getPercentDistance(b, 'sma200');
+        case 'adr':
+          aValue = movingAveragesMap[a]?.adr20 || -Infinity;
+          bValue = movingAveragesMap[b]?.adr20 || -Infinity;
+          break;
+        case 'todayADR': {
+          // Calculate today's % of ADR for sorting
+          const calculateTodayADRPercent = (ticker) => {
+            const priceData = pricesMap[ticker];
+            const adr20 = movingAveragesMap[ticker]?.adr20;
+            const price = priceData?.price;
+            const high = priceData?.high;
+            const low = priceData?.low;
+
+            if (!high || !low || !price || !adr20) {
+              return -Infinity;
+            }
+
+            const todayRange = high - low;
+            const adr20Dollars = price * (adr20 / 100);
+            return (todayRange / adr20Dollars) * 100;
+          };
+          aValue = calculateTodayADRPercent(a);
+          bValue = calculateTodayADRPercent(b);
+          break;
+        }
+        case '5morb':
+          aValue = orb5mDataMap[a]?.tier ?? -Infinity;
+          bValue = orb5mDataMap[b]?.tier ?? -Infinity;
           break;
         default:
           return 0;
@@ -89,7 +116,7 @@ export function WatchlistTable({
         return aValue < bValue ? 1 : -1;
       }
     });
-  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap]);
+  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap, orb5mDataMap, getPercentDistance]);
 
   // Get sort indicator
   const getSortIndicator = (column) => {
@@ -108,7 +135,7 @@ export function WatchlistTable({
             >
               Ticker{getSortIndicator('ticker')}
             </th>
-            <th>Time</th>
+            <th className="group-separator-major">Time</th>
             <th
               className="sortable"
               onClick={() => handleSort('price')}
@@ -117,6 +144,27 @@ export function WatchlistTable({
             </th>
             <th
               className="sortable"
+              onClick={() => handleSort('adr')}
+              title="20-Day Average Daily Range as % of price"
+            >
+              20D ADR%{getSortIndicator('adr')}
+            </th>
+            <th
+              className="sortable"
+              onClick={() => handleSort('todayADR')}
+              title="Today's range as percentage of 20-Day ADR"
+            >
+              Today&apos;s Move{getSortIndicator('todayADR')}
+            </th>
+            <th
+              className="sortable group-separator-major"
+              onClick={() => handleSort('5morb')}
+              title="5-Minute Opening Range Breakout (9:30-9:35 ET)"
+            >
+              5m ORB{getSortIndicator('5morb')}
+            </th>
+            <th
+              className="sortable group-separator"
               onClick={() => handleSort('10d')}
               title="% Distance from 10-Day EMA"
             >
@@ -150,13 +198,6 @@ export function WatchlistTable({
             >
               100D SMA{getSortIndicator('100d')}
             </th>
-            <th
-              className="sortable"
-              onClick={() => handleSort('200d')}
-              title="% Distance from 200-Day SMA"
-            >
-              200D SMA{getSortIndicator('200d')}
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -166,6 +207,7 @@ export function WatchlistTable({
               ticker={ticker}
               priceData={pricesMap[ticker]}
               movingAverages={movingAveragesMap[ticker]}
+              orb5mData={orb5mDataMap[ticker]}
             />
           ))}
         </tbody>

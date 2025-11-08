@@ -15,12 +15,14 @@ export function useFinnhubWebSocket(symbols) {
   const ws = useRef(null);
   const reconnectTimeout = useRef(null);
   const symbolsRef = useRef(symbols);
+  const connectRef = useRef(null);
 
   // Update symbols ref when it changes
   useEffect(() => {
     symbolsRef.current = symbols;
   }, [symbols]);
 
+  
   // Connect function
   const connect = useCallback(() => {
     try {
@@ -74,16 +76,16 @@ export function useFinnhubWebSocket(symbols) {
           if (message.type === 'ping') {
             websocket.send(JSON.stringify({ type: 'pong' }));
           }
-        } catch (err) {
+        } catch (_err) {
           // Silently ignore parsing errors
         }
       };
 
-      websocket.onerror = (event) => {
+      websocket.onerror = (_event) => {
         setError('WebSocket connection error');
       };
 
-      websocket.onclose = (event) => {
+      websocket.onclose = (_event) => {
         setConnected(false);
 
         // Attempt reconnection after delay
@@ -92,19 +94,20 @@ export function useFinnhubWebSocket(symbols) {
         }
 
         reconnectTimeout.current = setTimeout(() => {
-          connect();
+          connectRef.current?.();
         }, UPDATE_INTERVALS.WEBSOCKET_RECONNECT_MS);
       };
 
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to create WebSocket connection');
       setConnected(false);
     }
   }, []);
 
-  // Initialize connection on mount
+  // Store connect function ref and initialize connection on mount
   useEffect(() => {
-    connect();
+    connectRef.current = connect;
+    setTimeout(connect, 0);
 
     // Cleanup on unmount
     return () => {

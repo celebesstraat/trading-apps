@@ -140,29 +140,71 @@ export async function fetchIntradayCandles(symbol, resolution = 5, hoursBack = 1
 }
 
 /**
- * Fetches the first 5-minute candle (9:30-9:35 ET)
+ * Gets the timestamp for today's 9:30 AM ET (market open)
+ * @returns {number} Unix timestamp in milliseconds
+ */
+function getTodayMarketOpenTimestamp() {
+  const now = new Date();
+  const etString = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const etDate = new Date(etString);
+
+  // Set to 9:30 AM ET
+  etDate.setHours(9, 30, 0, 0);
+
+  return etDate.getTime();
+}
+
+/**
+ * Fetches the first 5-minute candle (9:30-9:35 ET) for today
  * Should be called after 9:35am ET
  * @param {string} symbol - Stock ticker
- * @returns {Promise<object>} First 5m candle
+ * @returns {Promise<object>} First 5m candle or null
  */
 export async function fetchFirst5mCandle(symbol) {
   try {
-    const data = await fetchIntradayCandles(symbol, 5, 2); // Last 2 hours to be safe
+    // Get today's market open timestamp (9:30 AM ET)
+    const marketOpenTime = getTodayMarketOpenTimestamp();
 
-    if (!data || !data.c || data.c.length === 0) {
+    // Fetch 5m candles from 9:00 AM to 11:00 AM ET (2 hours window)
+    const from = marketOpenTime - (30 * 60 * 1000); // 30 min before open
+    const to = marketOpenTime + (90 * 60 * 1000); // 90 min after open
+
+    const provider = getProvider();
+    const candles = await provider.fetchCandles(symbol, '5', from, to);
+
+    if (!candles || !candles.close || candles.close.length === 0) {
       return null;
     }
 
-    // The first candle in the returned data should be around 9:30-9:35 ET
-    const index = 0;
+    // Find the candle that starts at 9:30 AM ET (within 5-minute tolerance)
+    const targetTime = marketOpenTime;
+    const tolerance = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+    let closestIndex = -1;
+    let closestDiff = Infinity;
+
+    for (let i = 0; i < candles.timestamps.length; i++) {
+      const candleTime = candles.timestamps[i];
+      const diff = Math.abs(candleTime - targetTime);
+
+      if (diff < closestDiff && diff <= tolerance) {
+        closestDiff = diff;
+        closestIndex = i;
+      }
+    }
+
+    if (closestIndex === -1) {
+      console.warn(`No 9:30 AM candle found for ${symbol}`);
+      return null;
+    }
 
     return {
-      open: data.o[index],
-      high: data.h[index],
-      low: data.l[index],
-      close: data.c[index],
-      volume: data.v[index],
-      timestamp: data.t[index]
+      open: candles.open[closestIndex],
+      high: candles.high[closestIndex],
+      low: candles.low[closestIndex],
+      close: candles.close[closestIndex],
+      volume: candles.volume[closestIndex],
+      timestamp: candles.timestamps[closestIndex]
     };
   } catch (error) {
     console.error(`Error fetching first 5m candle for ${symbol}:`, error);
@@ -171,34 +213,73 @@ export async function fetchFirst5mCandle(symbol) {
 }
 
 /**
- * Fetches historical first 5-minute candles for multiple days
+ * Fetches historical first 5-minute candles (9:30-9:35 ET) for the last N trading days
+ * Used for RVOL calculation in the 5m ORB strategy
  * @param {string} symbol - Stock ticker
- * @param {number} days - Number of trading days to fetch
- * @returns {Promise<object[]>} Array of first 5m candles
+ * @param {number} days - Number of trading days to fetch (default: 20)
+ * @returns {Promise<object[]>} Array of first 5m candles (one per day)
  */
 export async function fetchHistoricalFirst5mCandles(symbol, days = 20) {
   try {
-    const data = await fetchIntradayCandles(symbol, 5, days * 24);
+    // Fetch last N days of 5m candles
+    // We need to fetch more days than requested to account for weekends
+    const daysToFetch = days * 2; // Fetch 2x to account for weekends
+    const provider = getProvider();
+    const to = Date.now();
+    const from = to - (daysToFetch * 24 * 60 * 60 * 1000);
 
-    if (!data || !data.c || data.c.length === 0) {
+    const candles = await provider.fetchCandles(symbol, '5', from, to);
+
+    if (!candles || !candles.close || candles.close.length === 0) {
       return [];
     }
 
-    // Extract candles
-    const candles = [];
-    for (let i = 0; i < data.c.length; i++) {
-      candles.push({
-        open: data.o[i],
-        high: data.h[i],
-        low: data.l[i],
-        close: data.c[i],
-        volume: data.v[i],
-        timestamp: data.t[i]
+    // Group candles by trading day and extract the first 5m candle of each day
+    const dailyFirstCandles = [];
+    const seenDates = new Set();
+
+    for (let i = 0; i < candles.timestamps.length; i++) {
+      const candleTime = new Date(candles.timestamps[i]);
+
+      // Convert to ET
+      const etString = candleTime.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
       });
+
+      const [datePart, timePart] = etString.split(', ');
+      const [month, day, year] = datePart.split('/');
+      const dateKey = `${year}-${month}-${day}`;
+      const [hour, minute] = timePart.split(':').map(Number);
+
+      // Check if this is the 9:30 AM candle (within tolerance)
+      const is930Candle = hour === 9 && minute >= 30 && minute < 35;
+
+      if (is930Candle && !seenDates.has(dateKey)) {
+        seenDates.add(dateKey);
+        dailyFirstCandles.push({
+          open: candles.open[i],
+          high: candles.high[i],
+          low: candles.low[i],
+          close: candles.close[i],
+          volume: candles.volume[i],
+          timestamp: candles.timestamps[i],
+          date: dateKey
+        });
+
+        // Stop if we have enough days
+        if (dailyFirstCandles.length >= days) {
+          break;
+        }
+      }
     }
 
-    // Take first X candles
-    return candles.slice(0, days);
+    return dailyFirstCandles;
   } catch (error) {
     console.error(`Error fetching historical first 5m candles for ${symbol}:`, error);
     return [];

@@ -68,6 +68,46 @@ export function getMovingAverages(dailyCandles) {
 }
 
 /**
+ * Calculates Average Daily Range as a percentage (ADR%)
+ * Matches TradingView's formula by ArmerSchlucker/MikeC/TheScrutiniser:
+ * ADR% = 100 * (SMA(high / low, period) - 1)
+ *
+ * This measures the average percentage range (high to low ratio) over N days.
+ * More accurate than dollar-based ranges as it's already normalized.
+ *
+ * @param {object} dailyCandles Candle data with {h: [highs], l: [lows]}
+ * @param {number} period Number of days to average (default: 20)
+ * @returns {number} ADR as percentage
+ */
+export function calculateADRPercent(dailyCandles, period = 20) {
+  if (!dailyCandles || !dailyCandles.h || !dailyCandles.l) {
+    return null;
+  }
+
+  if (dailyCandles.h.length < period || dailyCandles.l.length < period) {
+    return null;
+  }
+
+  // Calculate high/low ratios for each day
+  const ratios = dailyCandles.h.map((high, i) => {
+    const low = dailyCandles.l[i];
+    // Prevent division by zero
+    if (low === 0 || !low) return 1;
+    return high / low;
+  });
+
+  // Get simple moving average of the ratios
+  const avgRatio = calculateSMA(ratios, period);
+
+  if (!avgRatio) {
+    return null;
+  }
+
+  // Convert to percentage: (avgRatio - 1) * 100
+  return (avgRatio - 1) * 100;
+}
+
+/**
  * Calculates the average volume for the first 5 minutes across multiple days
  * Used for ORB strategy to determine if today's first 5m volume is significant
  * @param {object[]} historicalFirst5mCandles Array of first 5m candles from past days
@@ -152,4 +192,185 @@ export function calculateBodyRatio(candle) {
   }
 
   return (candle.close - candle.low) / range;
+}
+
+/**
+ * Evaluates the first 5-minute candle (9:30-9:35 ET) based on TradingView Pine Script criteria
+ * Returns tier level: null (no data), 0 (doesn't qualify), 1 (tier-1: light green), 2 (tier-2: dark green)
+ *
+ * Matches the logic from "Andy's US Opening 5m Candle Highlighter" indicator:
+ * - Open position <= 20% of range (opens near low)
+ * - Close position >= 80% of range (closes near high)
+ * - Body >= 55% of range
+ * - Green candle (close > open)
+ * - RVOL tier-1 >= 0.25x (light green)
+ * - RVOL tier-2 >= 1.50x (dark green)
+ *
+ * @param {object} params
+ * @param {object} params.first5mCandle The 9:30-9:35 ET candle {open, high, low, close, volume}
+ * @param {object[]} params.historicalFirst5mCandles Array of historical first 5m candles for RVOL calc
+ * @param {object} params.config Optional config overrides {lowerQuantile, upperQuantile, minBodyFrac, rvolTier1, rvolTier2, minSamples}
+ * @returns {number|null} null (no data), 0 (no match), 1 (tier-1), 2 (tier-2)
+ */
+export function evaluate5mORB({
+  first5mCandle,
+  historicalFirst5mCandles = [],
+  config = {}
+}) {
+  // Default Pine Script parameters
+  const {
+    lowerQuantile = 0.20,
+    upperQuantile = 0.80,
+    minBodyFrac = 0.55,
+    requireGreen = true,
+    rvolTier1 = 0.25,
+    rvolTier2 = 1.50,
+    minSamples = 10
+  } = config;
+
+  // No data yet
+  if (!first5mCandle) {
+    return null;
+  }
+
+  const { open, high, low, close, volume } = first5mCandle;
+
+  // Validate candle data
+  if (
+    open === null || open === undefined ||
+    high === null || high === undefined ||
+    low === null || low === undefined ||
+    close === null || close === undefined ||
+    volume === null || volume === undefined
+  ) {
+    return null;
+  }
+
+  // === PRICE CRITERIA (priceOK in Pine Script) ===
+
+  const range = high - low;
+
+  // Range check (rngOK) - must have some range
+  if (range <= 0) {
+    return 0;
+  }
+
+  // Open position in range (should be <= 20%)
+  const openPos = (open - low) / range;
+  const openLowQ = openPos <= lowerQuantile;
+
+  // Close position in range (should be >= 80%)
+  const closePos = (close - low) / range;
+  const closeHighQ = closePos >= upperQuantile;
+
+  // Body ratio (body >= 55% of range)
+  const body = Math.abs(close - open);
+  const bodyOK = body >= range * minBodyFrac;
+
+  // Green candle check
+  const greenOK = requireGreen ? close > open : true;
+
+  // Combined price check
+  const priceOK = openLowQ && closeHighQ && bodyOK && greenOK;
+
+  if (!priceOK) {
+    return 0; // Doesn't meet price criteria
+  }
+
+  // === RVOL CALCULATION (TRUE opening-bar RVOL) ===
+
+  // Calculate average volume from historical first 5m candles
+  const validHistoricalVolumes = historicalFirst5mCandles
+    .map(candle => candle?.volume)
+    .filter(vol => vol !== null && vol !== undefined && vol > 0);
+
+  // Not enough samples
+  if (validHistoricalVolumes.length < minSamples) {
+    return 0; // Can't calculate RVOL without enough history
+  }
+
+  const avgOpenVol = validHistoricalVolumes.reduce((sum, vol) => sum + vol, 0) / validHistoricalVolumes.length;
+  const rvol = volume / avgOpenVol;
+
+  // === TIER EVALUATION ===
+
+  // Tier-2: RVOL >= 1.50x
+  if (rvol >= rvolTier2) {
+    return 2;
+  }
+
+  // Tier-1: RVOL >= 0.25x
+  if (rvol >= rvolTier1) {
+    return 1;
+  }
+
+  // Doesn't meet RVOL threshold
+  return 0;
+}
+
+/**
+ * Gets detailed 5m ORB information for debugging/display
+ * @param {object} params Same as evaluate5mORB
+ * @returns {object} Detailed breakdown
+ */
+export function get5mORBDetails({
+  first5mCandle,
+  historicalFirst5mCandles = [],
+  config = {}
+}) {
+  const tier = evaluate5mORB({ first5mCandle, historicalFirst5mCandles, config });
+
+  if (!first5mCandle) {
+    return {
+      tier: null,
+      status: 'No data',
+      rvol: null,
+      priceOK: false
+    };
+  }
+
+  const { open, high, low, close, volume } = first5mCandle;
+  const range = high - low;
+
+  if (range <= 0) {
+    return {
+      tier: 0,
+      status: 'No range',
+      rvol: null,
+      priceOK: false
+    };
+  }
+
+  const openPos = (open - low) / range;
+  const closePos = (close - low) / range;
+  const body = Math.abs(close - open);
+  const bodyRatio = body / range;
+
+  const validHistoricalVolumes = historicalFirst5mCandles
+    .map(candle => candle?.volume)
+    .filter(vol => vol !== null && vol !== undefined && vol > 0);
+
+  let rvol = null;
+  if (validHistoricalVolumes.length > 0) {
+    const avgOpenVol = validHistoricalVolumes.reduce((sum, vol) => sum + vol, 0) / validHistoricalVolumes.length;
+    rvol = volume / avgOpenVol;
+  }
+
+  const openLowQ = openPos <= (config.lowerQuantile || 0.20);
+  const closeHighQ = closePos >= (config.upperQuantile || 0.80);
+  const bodyOK = bodyRatio >= (config.minBodyFrac || 0.55);
+  const greenOK = close > open;
+  const priceOK = openLowQ && closeHighQ && bodyOK && greenOK;
+
+  return {
+    tier,
+    status: tier === 2 ? 'Tier-2' : tier === 1 ? 'Tier-1' : tier === 0 ? 'No match' : 'No data',
+    rvol: rvol !== null ? rvol.toFixed(2) : 'N/A',
+    priceOK,
+    openPos: (openPos * 100).toFixed(1) + '%',
+    closePos: (closePos * 100).toFixed(1) + '%',
+    bodyRatio: (bodyRatio * 100).toFixed(1) + '%',
+    isGreen: greenOK,
+    historicalSamples: validHistoricalVolumes.length
+  };
 }

@@ -8,7 +8,7 @@
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  max-width: 600px;
+  max-width: 1600px;
 }
 
 .watchlist-table thead {
@@ -19,7 +19,7 @@
 }
 
 .watchlist-table th {
-  padding: 4px 6px;
+  padding: 8px 16px;
   text-align: center;
   font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
@@ -40,12 +40,24 @@
 }
 
 .watchlist-table td {
-  padding: 4px 6px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .watchlist-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+/* Column group separators - subtle borders between logical groupings */
+.group-separator {
+  border-left: 2px solid rgba(30, 36, 57, 0.8);
+  padding-left: 20px;
+}
+
+/* Distinct separator for major column boundaries */
+.group-separator-major {
+  border-left: 3px solid rgba(42, 49, 80, 1);
+  padding-left: 28px;
 }
 
 /* Empty state */
@@ -56,7 +68,7 @@
 }
 
 /* Responsive */
-@media (max-width: 1200px) {
+@media (max-width: 1600px) {
   .watchlist-container {
     overflow-x: auto;
   }

@@ -115,7 +115,7 @@ export function useRealtimePrice(symbols) {
 
   // Initialize connection on mount
   useEffect(() => {
-    connect();
+    setTimeout(connect, 0);
 
     // Cleanup on unmount
     return () => {
@@ -132,15 +132,16 @@ export function useRealtimePrice(symbols) {
   }, [connect]);
 
   // Handle symbol list changes
+  const symbolList = symbols.join(',');
   useEffect(() => {
     if (!connected || !providerRef.current) {
       return;
     }
 
     // Resubscribe with new symbol list
-    reconnect();
+    setTimeout(reconnect, 0);
 
-  }, [symbols.join(',')]); // Dependency on symbol array content
+  }, [symbolList, connected, reconnect]); // Dependencies
 
   return {
     prices,

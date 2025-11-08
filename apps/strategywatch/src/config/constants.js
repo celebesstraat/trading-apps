@@ -3,6 +3,10 @@
 // 'hybrid' = WebSocket + REST fallback (real-time, <1s latency)
 export const DATA_MODE = 'hybrid'; // Alpaca has much better WebSocket support
 
+// === MOCK DATA MODE ===
+// Set to true to use fake data for visual testing (5M ORB, Today's Move, etc.)
+export const MOCK_DATA_MODE = true;
+
 // Market Data Provider Configuration (Alpaca Markets)
 export const MARKET_DATA_CONFIG = {
   PROVIDER: 'alpaca',
@@ -90,6 +94,7 @@ export const HISTORICAL_CONFIG = {
   SMA_65_PERIOD: 65,
   SMA_100_PERIOD: 100,
   SMA_200_PERIOD: 200,
+  ADR_PERIOD: 20,                  // Average Daily Range period (20-Day ADR%)
 };
 
 // UI Configuration

@@ -16,6 +16,8 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.node,
+        __APP_VERSION__: 'readonly',
+        __BUILD_TIME__: 'readonly',
       },
       parserOptions: {
         ecmaFeatures: {
@@ -52,7 +54,7 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error', 'log', 'info', 'debug'] }],
       'prefer-const': 'warn',
       'no-var': 'warn',
-      'no-undef': ['error', { globals: { __APP_VERSION__: 'readonly', __BUILD_TIME__: 'readonly' } }],
+      'no-undef': 'error',
       // React specific rules
       'react/jsx-key': 'error',
       'react/jsx-no-duplicate-props': 'error',

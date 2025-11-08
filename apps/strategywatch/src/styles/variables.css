@@ -54,9 +54,9 @@
   --sidebar-width: 0px; /* For future use */
 
   /* Cell Widths */
-  --cell-ticker: 45px;
-  --cell-time: 50px;
-  --cell-price: 55px;
+  --cell-ticker: 80px;
+  --cell-time: 90px;
+  --cell-price: 80px;
   --cell-ma: 60px;
 
   /* Spacing */

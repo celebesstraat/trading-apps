@@ -57,6 +57,26 @@
   color: var(--status-disconnected);
 }
 
+/* Dual-line MA display */
+.ma-dual-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.3;
+}
+
+.ma-value {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-normal);
+}
+
+.ma-percentage {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
 /* Clickable elements */
 .ticker-symbol.clickable:hover {
   color: var(--accent-blue-hover);
@@ -65,4 +85,80 @@
 
 .price.clickable:hover {
   color: var(--accent-blue);
+}
+
+/* 5m ORB cell styling */
+.orb-cell {
+  width: var(--cell-ma);
+  text-align: center;
+  padding: 6px;
+}
+
+.orb-cell .orb-indicator {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  line-height: 24px;
+  transition: background-color var(--transition-fast);
+}
+
+/* Tier 1: Light green background - more visible */
+.orb-cell.orb-tier-1 .orb-indicator {
+  background-color: rgba(144, 238, 144, 0.35); /* Light green with higher opacity */
+}
+
+/* Tier 2: Dark green background - more visible and distinct */
+.orb-cell.orb-tier-2 .orb-indicator {
+  background-color: rgba(0, 200, 0, 0.5); /* Bright green with higher opacity */
+}
+
+/* Dark green border when price >= 5m ORB high (confirmed breakout) */
+.orb-cell.orb-breakout-border .orb-indicator {
+  border: 2px solid #00aa00;
+  box-shadow: 0 0 8px rgba(0, 170, 0, 0.6);
+}
+
+.orb-indicator {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Today's % of ADR progress bar */
+.adr-progress-cell {
+  width: var(--cell-ma);
+  text-align: center;
+  padding: 8px 12px;
+}
+
+.adr-progress-container {
+  position: relative;
+  width: 100%;
+  height: 24px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.adr-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(0, 255, 0, 0.2), rgba(0, 255, 0, 0.4));
+  transition: width var(--transition-fast), background var(--transition-fast);
+}
+
+/* Red color when >= 100% of ADR */
+.adr-progress-bar.over-adr {
+  background: linear-gradient(90deg, rgba(255, 0, 0, 0.2), rgba(255, 0, 0, 0.4));
+}
+
+.adr-progress-text {
+  position: relative;
+  z-index: 1;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  line-height: 24px;
 }

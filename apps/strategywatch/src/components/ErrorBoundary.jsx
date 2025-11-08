@@ -85,7 +85,7 @@ export class ErrorBoundary extends React.Component {
             <h1 className="error-title">Something went wrong</h1>
 
             <p className="error-message">
-              We're sorry, but something unexpected happened. The trading application encountered an error.
+              We&apos;re sorry, but something unexpected happened. The trading application encountered an error.
             </p>
 
             <div className="error-actions">

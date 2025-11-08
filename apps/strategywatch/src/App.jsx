@@ -15,6 +15,7 @@ function AppContent() {
     tickers,
     prices,
     movingAverages,
+    orb5mData,
     connected,
     marketOpen,
     currentTime,
@@ -112,6 +113,7 @@ VITE_ALPACA_DATA_FEED=iex
           tickers={tickers}
           pricesMap={prices}
           movingAveragesMap={movingAverages}
+          orb5mDataMap={orb5mData}
         />
       </main>
 

@@ -9,7 +9,7 @@ import './Footer.css';
  * @param {number} props.lastUpdate Timestamp of last update (ms)
  * @param {number} props.tickerCount Number of tickers being tracked
  */
-export function Footer({ lastUpdate, tickerCount }) {
+export function Footer({ lastUpdate, _tickerCount }) {
   return (
     <footer className="footer">
       <div className="footer-left">
