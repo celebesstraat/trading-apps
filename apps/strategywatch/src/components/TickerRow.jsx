@@ -22,6 +22,20 @@ export function TickerRow({
 }) {
   const price = priceData?.price;
   const timestamp = priceData?.timestamp;
+  const previousClose = priceData?.previousClose;
+
+  // Calculate percentage change from previous close
+  const getChangePercentDisplay = () => {
+    if (!price || !previousClose) {
+      return { value: '—', className: '' };
+    }
+    const changePercent = ((price - previousClose) / previousClose) * 100;
+    const isPositive = changePercent >= 0;
+    return {
+      value: `${isPositive ? '+' : ''}${changePercent.toFixed(2)}%`,
+      className: isPositive ? 'change-green' : 'change-red'
+    };
+  };
 
   // Track last ORB announcements to prevent duplicate voice alerts
   const lastORBAnnouncement = useRef({
@@ -254,6 +268,13 @@ export function TickerRow({
           title="Open in TradingView"
         >
           {price ? formatPrice(price) : '—'}
+        </span>
+      </td>
+
+      {/* Change % */}
+      <td className="change-percent-cell">
+        <span className={`change-percent mono ${getChangePercentDisplay().className}`}>
+          {getChangePercentDisplay().value}
         </span>
       </td>
 

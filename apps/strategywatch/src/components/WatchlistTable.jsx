@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import TickerRow from './TickerRow';
 import './WatchlistTable.css';
 
@@ -34,12 +34,20 @@ export function WatchlistTable({
   };
 
   // Calculate % distance from MA for a ticker
-  const getPercentDistance = (ticker, maType) => {
+  const getPercentDistance = useCallback((ticker, maType) => {
     const price = pricesMap[ticker]?.price;
     const ma = movingAveragesMap[ticker]?.[maType];
     if (!price || !ma) return -Infinity; // Sort nulls to bottom
     return ((price - ma) / ma) * 100;
-  };
+  }, [pricesMap, movingAveragesMap]);
+
+  // Calculate % change from previous close for a ticker
+  const getChangePercent = useCallback((ticker) => {
+    const price = pricesMap[ticker]?.price;
+    const previousClose = pricesMap[ticker]?.previousClose;
+    if (!price || !previousClose) return -Infinity;
+    return ((price - previousClose) / previousClose) * 100;
+  }, [pricesMap]);
 
   // Sort tickers based on current sort settings
   const sortedTickers = useMemo(() => {
@@ -56,6 +64,10 @@ export function WatchlistTable({
         case 'price':
           aValue = pricesMap[a]?.price || 0;
           bValue = pricesMap[b]?.price || 0;
+          break;
+        case 'changePercent':
+          aValue = getChangePercent(a);
+          bValue = getChangePercent(b);
           break;
         case '10d':
           aValue = getPercentDistance(a, 'ema10');
@@ -116,7 +128,7 @@ export function WatchlistTable({
         return aValue < bValue ? 1 : -1;
       }
     });
-  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap, orb5mDataMap, getPercentDistance]);
+  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap, orb5mDataMap, getPercentDistance, getChangePercent]);
 
   // Get sort indicator
   const getSortIndicator = (column) => {
@@ -135,12 +147,19 @@ export function WatchlistTable({
             >
               Ticker{getSortIndicator('ticker')}
             </th>
-            <th className="group-separator-major">Time</th>
+            <th className="group-separator-major">Timestamp</th>
             <th
               className="sortable"
               onClick={() => handleSort('price')}
             >
               Price{getSortIndicator('price')}
+            </th>
+            <th
+              className="sortable"
+              onClick={() => handleSort('changePercent')}
+              title="% Change from previous day's close"
+            >
+              Change %{getSortIndicator('changePercent')}
             </th>
             <th
               className="sortable"

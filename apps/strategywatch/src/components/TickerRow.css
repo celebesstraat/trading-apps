@@ -39,6 +39,24 @@
   font-weight: var(--font-weight-medium);
 }
 
+.change-percent-cell {
+  width: var(--cell-change-percent);
+  text-align: center;
+}
+
+.change-percent {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
+.change-green {
+  color: var(--status-connected);
+}
+
+.change-red {
+  color: var(--status-disconnected);
+}
+
 .ma-cell {
   width: var(--cell-ma);
   text-align: center;

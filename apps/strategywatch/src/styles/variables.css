@@ -57,6 +57,7 @@
   --cell-ticker: 80px;
   --cell-time: 90px;
   --cell-price: 80px;
+  --cell-change-percent: 70px;
   --cell-ma: 60px;
 
   /* Spacing */
