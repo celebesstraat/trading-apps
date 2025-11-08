@@ -67,17 +67,31 @@ export function useRealtimePrice(symbols) {
     } catch (err) {
       setError(err.message);
       setConnected(false);
-
-      // Schedule reconnection
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
-      }, 5000);
+      // The reconnection will be handled by the useEffect below
     }
   }, [handlePriceUpdate]);
+
+  // Handle reconnection when disconnected due to error
+  useEffect(() => {
+    if (!connected && error && !reconnectTimeoutRef.current) {
+      reconnectTimeoutRef.current = setTimeout(async () => {
+        try {
+          await connect();
+        } catch (reconnectError) {
+          console.error('Reconnection failed:', reconnectError);
+          setError(reconnectError.message);
+          reconnectTimeoutRef.current = null;
+        }
+      }, 5000);
+    }
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+  }, [connected, error, connect]);
 
   /**
    * Manual reconnect function

@@ -16,16 +16,16 @@ export function getEasternTime() {
  */
 export function getNextTradingDay(currentDate) {
   const nextDay = new Date(currentDate);
-  let daysToAdd = 1;
+  const daysToAdd = 1;
 
   // Keep adding days until we find a weekday (Monday-Friday)
-  do {
+  while (true) {
     nextDay.setDate(nextDay.getDate() + daysToAdd);
     const dayOfWeek = nextDay.getDay();
     if (dayOfWeek >= 1 && dayOfWeek <= 5) { // 1 = Monday, 5 = Friday
       break;
     }
-  } while (true);
+  }
 
   return nextDay;
 }

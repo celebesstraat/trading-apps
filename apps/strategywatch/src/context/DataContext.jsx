@@ -13,14 +13,11 @@ const DataContext = createContext(null);
  * Manages all application state and data fetching
  */
 export function DataProvider({ children }) {
-  // WebSocket connection for real-time prices (only in hybrid mode)
-  const wsEnabled = DATA_MODE === 'hybrid';
-  const { prices: wsPrices, connected, error: wsError } = wsEnabled
-    ? useRealtimePrice(WATCHLIST)
-    : { prices: {}, connected: false, error: null };
-
   // Market hours tracking
-  const { marketOpen, orbActive, currentTime, marketStatus } = useMarketHours();
+  const { marketOpen, currentTime, marketStatus } = useMarketHours();
+
+  // WebSocket connection for real-time prices (always call hook, but conditionally use)
+  const { prices: wsPrices, connected, error: wsError } = useRealtimePrice(WATCHLIST);
 
   // State
   const [historicalData, setHistoricalData] = useState({}); // Map of ticker -> daily candles
