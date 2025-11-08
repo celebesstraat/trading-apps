@@ -1,4 +1,7 @@
+import { useMemo, useRef, useEffect } from 'react';
 import { formatPrice, formatTime } from '../utils/formatters';
+import { ORB_THRESHOLDS } from '../config/constants';
+import { announce } from '../utils/voiceAlerts';
 import './TickerRow.css';
 
 /**
@@ -19,6 +22,13 @@ export function TickerRow({
 }) {
   const price = priceData?.price;
   const timestamp = priceData?.timestamp;
+
+  // Track last ORB announcements to prevent duplicate voice alerts
+  const lastORBAnnouncement = useRef({
+    announcedTier: null,
+    announcedTime: 0,
+    announcedBreakout: false
+  });
 
   // Calculate % distance from MA and determine color
   const getMADisplay = (maValue) => {
@@ -56,34 +66,128 @@ export function TickerRow({
     };
   };
 
-  // Get 5m ORB display (blank or green background based on tier)
-  const get5mORBDisplay = (orbData) => {
-    if (!orbData || orbData.tier === null || orbData.tier === undefined) {
-      return { text: '—', className: '', hasBorder: false };
+  // Get 5m ORB display using simple traffic light system
+  const orb5mDisplay = useMemo(() => {
+    if (!orb5mData || !orb5mData.candle) {
+      return { text: '', className: '', hasBorder: false, tooltip: 'Waiting for first 5m candle...', tier1Met: false, tier2Met: false };
     }
 
-    const tier = orbData.tier;
+    // Check criteria for traffic light system
+    const { open, high, low, close, volume } = orb5mData.candle;
+    const avgVolume = orb5mData.avgVolume;
 
-    // Tier 0: No match (blank)
-    if (tier === 0) {
-      return { text: '—', className: '', hasBorder: false };
+    // Calculate criteria - EXACTLY matching Pine Script
+    const range = high - low;
+    const body = Math.abs(close - open);
+    const bodyRatio = range > 0 ? body / range : 0;
+    const volumeMultiplier = avgVolume ? volume / avgVolume : 0;
+    const isGreenCandle = close > open;
+
+    // Pine Script position calculations
+    const openPos = range > 0 ? (open - low) / range : 0;
+    const closePos = range > 0 ? (close - low) / range : 0;
+
+    // Pine Script criteria (exact match using constants)
+    const openLowQ = openPos <= ORB_THRESHOLDS.LOWER_QUANTILE;  // Open ≤ 20% of range
+    const closeHighQ = closePos >= ORB_THRESHOLDS.UPPER_QUANTILE; // Close ≥ 80% of range
+    const bodyOK = bodyRatio >= ORB_THRESHOLDS.MIN_BODY_RATIO;  // Body ≥ 55% of range
+    const greenOK = isGreenCandle;     // Require green candle
+
+    // Check if price is >= 5m ORB high for luminous border
+    const hasBorder = price && high && price >= high;
+
+    // Determine traffic light color
+    let className = '';
+    let tooltip = '';
+
+    // Pine Script Tier 1 criteria (exact match)
+    const priceOK = bodyOK && greenOK && openLowQ && closeHighQ;
+    const tier1Met = priceOK && volumeMultiplier >= ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER; // 0.25x RVOL threshold
+
+    // Pine Script Tier 2 criteria (exact match)
+    const tier2Met = priceOK && volumeMultiplier >= ORB_THRESHOLDS.TIER2_VOLUME_MULTIPLIER; // 1.50x RVOL threshold
+
+    if (tier2Met) {
+      // Dark green for Tier 2 (Pine Script: RVOL ≥ 1.50x)
+      className = 'orb-dark-green';
+      tooltip = `Tier 2: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER2_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
+      return {
+        text: '', // No emoji - circle itself is the traffic light
+        className,
+        hasBorder,
+        tooltip: hasBorder ? `${tooltip} - BROKE OUT!` : tooltip,
+        tier1Met,
+        tier2Met
+      };
+    } else if (tier1Met) {
+      // Light green for Tier 1 (Pine Script: RVOL ≥ 0.25x)
+      className = 'orb-light-green';
+      tooltip = `Tier 1: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
+      return {
+        text: '', // No emoji - circle itself is the traffic light
+        className,
+        hasBorder,
+        tooltip: hasBorder ? `${tooltip} - BROKE OUT!` : tooltip,
+        tier1Met,
+        tier2Met
+      };
+    } else {
+      // Blank - no traffic light
+      const failReasons = [];
+      if (!openLowQ) failReasons.push(`Open ${(openPos*100).toFixed(0)}% > ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}%`);
+      if (!closeHighQ) failReasons.push(`Close ${(closePos*100).toFixed(0)}% < ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}%`);
+      if (!bodyOK) failReasons.push(`Body ${(bodyRatio*100).toFixed(0)}% < ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`);
+      if (!greenOK) failReasons.push('Red candle');
+      if (volumeMultiplier < ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER) failReasons.push(`RVOL ${volumeMultiplier.toFixed(2)}x < ${ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER}x`);
+
+      return {
+        text: '', // No display when criteria not met
+        className: '',
+        hasBorder: false,
+        tooltip: `Failed: ${failReasons.join(', ')}`,
+        tier1Met,
+        tier2Met
+      };
+    }
+  }, [orb5mData, price]); // Dependencies for memoization
+
+  // Handle voice announcements with debouncing (moved outside useMemo)
+  useEffect(() => {
+    if (!orb5mDisplay.tier1Met && !orb5mDisplay.tier2Met && !orb5mDisplay.hasBorder) {
+      return;
     }
 
-    // Check if price is >= 5m ORB high for border styling
-    const hasBorder = price && orbData.candle?.high && price >= orbData.candle.high;
+    const now = Date.now();
+    const timeSinceLastAnnouncement = now - lastORBAnnouncement.current.announcedTime;
+    const ANNOUNCEMENT_COOLDOWN = 30000; // 30 seconds cooldown to prevent spam
 
-    // Tier 1: Light green background
-    if (tier === 1) {
-      return { text: '', className: 'orb-tier-1', hasBorder };
+    if (orb5mDisplay.tier2Met && lastORBAnnouncement.current.announcedTier !== 2 && timeSinceLastAnnouncement > ANNOUNCEMENT_COOLDOWN) {
+      // Very strong opening candle
+      announce(`${ticker} opening candle is very strong`);
+      lastORBAnnouncement.current = {
+        announcedTier: 2,
+        announcedTime: now,
+        announcedBreakout: false
+      };
+    } else if (orb5mDisplay.tier1Met && lastORBAnnouncement.current.announcedTier !== 1 && timeSinceLastAnnouncement > ANNOUNCEMENT_COOLDOWN) {
+      // Strong opening candle
+      announce(`${ticker} opening candle is strong`);
+      lastORBAnnouncement.current = {
+        announcedTier: 1,
+        announcedTime: now,
+        announcedBreakout: false
+      };
     }
 
-    // Tier 2: Dark green background
-    if (tier === 2) {
-      return { text: '', className: 'orb-tier-2', hasBorder };
+    // ORB Breakout announcement (when price crosses above ORB high)
+    if (orb5mDisplay.hasBorder && !lastORBAnnouncement.current.announcedBreakout && timeSinceLastAnnouncement > ANNOUNCEMENT_COOLDOWN) {
+      announce(`${ticker} ORB is confirmed`);
+      lastORBAnnouncement.current.announcedBreakout = true;
+    } else if (!orb5mDisplay.hasBorder) {
+      // Reset breakout flag when price drops below ORB high
+      lastORBAnnouncement.current.announcedBreakout = false;
     }
-
-    return { text: '—', className: '', hasBorder: false };
-  };
+  }, [orb5mDisplay.tier1Met, orb5mDisplay.tier2Met, orb5mDisplay.hasBorder, ticker]);
 
   // Get Today's % of ADR display (progress bar showing how much of 20D ADR has been covered today)
   const getTodayADRDisplay = (adr20Value) => {
@@ -121,7 +225,7 @@ export function TickerRow({
   const sma65Display = getMADisplay(movingAverages?.sma65);
   const sma100Display = getMADisplay(movingAverages?.sma100);
   const adr20Display = getADRDisplay(movingAverages?.adr20);
-  const orb5mDisplay = get5mORBDisplay(orb5mData);
+  // orb5mDisplay is now memoized above
   const todayADRDisplay = getTodayADRDisplay(movingAverages?.adr20);
 
   return (
@@ -154,7 +258,7 @@ export function TickerRow({
       </td>
 
       {/* 20D ADR% */}
-      <td className="ma-cell">
+      <td className="ma-cell group-separator-major">
         <span className={`ma-percent mono ${adr20Display.className}`}>
           {adr20Display.text}
         </span>
@@ -177,13 +281,16 @@ export function TickerRow({
 
       {/* 5m ORB */}
       <td className={`orb-cell group-separator-major ${orb5mDisplay.className} ${orb5mDisplay.hasBorder ? 'orb-breakout-border' : ''}`}>
-        <span className="orb-indicator">
+        <span
+          className="orb-indicator"
+          title={orb5mDisplay.tooltip}
+        >
           {orb5mDisplay.text}
         </span>
       </td>
 
       {/* 10D EMA */}
-      <td className="ma-cell group-separator">
+      <td className="ma-cell group-separator-major">
         <div className="ma-dual-display">
           <div className="ma-value mono">{ema10Display.value}</div>
           <div className={`ma-percentage mono ${ema10Display.className}`}>

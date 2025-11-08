@@ -96,13 +96,15 @@
 
 .orb-cell .orb-indicator {
   display: inline-block;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  line-height: 24px;
+  line-height: 32px;
   transition: background-color var(--transition-fast);
+  font-size: 20px;
 }
 
+/* Legacy tier-based styles (keeping for compatibility) */
 /* Tier 1: Light green background - more visible */
 .orb-cell.orb-tier-1 .orb-indicator {
   background-color: rgba(144, 238, 144, 0.35); /* Light green with higher opacity */
@@ -113,10 +115,39 @@
   background-color: rgba(0, 200, 0, 0.5); /* Bright green with higher opacity */
 }
 
-/* Dark green border when price >= 5m ORB high (confirmed breakout) */
+/* Simple traffic light system styles */
+/* Light green for Tier 1 criteria met */
+.orb-cell.orb-light-green .orb-indicator {
+  background-color: #9CCC65; /* Clear light green - much different from dark */
+  color: transparent;
+}
+
+/* Dark green for Tier 2 criteria met */
+.orb-cell.orb-dark-green .orb-indicator {
+  background-color: #2E7D32; /* Deep forest green - very distinct */
+  color: transparent;
+}
+
+/* Ensure indicator is visible even when empty */
+.orb-cell.orb-light-green .orb-indicator:empty,
+.orb-cell.orb-dark-green .orb-indicator:empty {
+  display: inline-block;
+}
+
+/* Luminous green border when price >= 5m ORB high (broken out) */
 .orb-cell.orb-breakout-border .orb-indicator {
-  border: 2px solid #00aa00;
-  box-shadow: 0 0 8px rgba(0, 170, 0, 0.6);
+  border: 3px solid #00ff00;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.8), inset 0 0 8px rgba(0, 255, 0, 0.3);
+  animation: pulse-luminous 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-luminous {
+  from {
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.8), inset 0 0 8px rgba(0, 255, 0, 0.3);
+  }
+  to {
+    box-shadow: 0 0 25px rgba(0, 255, 0, 1), inset 0 0 12px rgba(0, 255, 0, 0.5);
+  }
 }
 
 .orb-indicator {

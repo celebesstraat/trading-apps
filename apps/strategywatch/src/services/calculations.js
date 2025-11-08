@@ -1,4 +1,5 @@
 import { HISTORICAL_CONFIG } from '../config/constants';
+import { announce } from '../utils/voiceAlerts';
 
 /**
  * Calculates Exponential Moving Average (EMA)
@@ -373,4 +374,61 @@ export function get5mORBDetails({
     isGreen: greenOK,
     historicalSamples: validHistoricalVolumes.length
   };
+}
+
+// Store announced ADR milestones to avoid duplicates
+const announcedMilestones = new Set();
+
+/**
+ * Checks and announces ADR milestones for today's price movement
+ * @param {object} params
+ * @param {string} params.symbol Stock symbol
+ * @param {number} params.currentPrice Current price
+ * @param {number} params.dayOpen Opening price of the day
+ * @param {number} params.adrPercent 20-day Average Daily Range percentage
+ * @returns {number} Current move as percentage of ADR
+ */
+export function checkAndAnnounceADRMilestone({
+  symbol,
+  currentPrice,
+  dayOpen,
+  adrPercent
+}) {
+  if (!currentPrice || !dayOpen || !adrPercent || adrPercent === 0) {
+    return 0;
+  }
+
+  // Calculate today's move as percentage of ADR
+  const todayMovePercent = Math.abs(calculatePercentDifference(currentPrice, dayOpen));
+  const adrRatio = todayMovePercent / adrPercent;
+  const adrPercentage = Math.round(adrRatio * 100);
+
+  // Define milestone thresholds
+  const milestones = [25, 50, 75, 100, 150, 200];
+
+  // Check if any milestone is reached
+  for (const milestone of milestones) {
+    const milestoneKey = `${symbol}-${milestone}`;
+
+    if (adrPercentage >= milestone && !announcedMilestones.has(milestoneKey)) {
+      announce(`${symbol} today's move is now at ${milestone}% of 20D ADR`);
+      announcedMilestones.add(milestoneKey);
+
+      // Clean up old milestones (keep current day's data)
+      if (milestone >= 100) {
+        // Once we hit 100%, we can announce higher milestones too
+        break;
+      }
+    }
+  }
+
+  return adrPercentage;
+}
+
+/**
+ * Resets announced milestones for a new trading day
+ * Call this at market open or when resetting data
+ */
+export function resetADRMilestones() {
+  announcedMilestones.clear();
 }

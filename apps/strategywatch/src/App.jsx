@@ -5,6 +5,8 @@ import WatchlistTable from './components/WatchlistTable';
 import ErrorBoundary from './components/ErrorBoundary';
 import './styles/global.css';
 import './App.css';
+// Import ORB test console for voice announcement testing
+import './utils/orbTestConsole';
 
 /**
  * Main App Content Component

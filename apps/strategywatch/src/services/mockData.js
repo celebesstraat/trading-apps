@@ -60,68 +60,197 @@ function generateMockMovingAverages(price, index) {
 }
 
 /**
- * Generates mock 5M ORB data with varied tiers
+ * Generates mock 5M ORB data for testing Pine Script traffic light scenarios
  * @param {number} index Ticker index for variation
  * @param {number} price Current price
  * @returns {object} Mock 5M ORB data
  */
 function generateMock5mORB(index, price) {
-  // Cycle through tiers: null, 0, 1, 2
-  const tierCycle = [null, 0, 1, 2, 1, 2, 0, 1];
-  const tier = tierCycle[index % tierCycle.length];
-
-  if (tier === null) {
-    return {
+  // Create different scenarios matching Pine Script criteria exactly
+  const scenarios = [
+    // Scenario 0: No ORB data (null) - before 9:35 AM
+    () => ({
       candle: null,
-      historicalCandles: [],
+      avgVolume: null,
       tier: null
-    };
-  }
+    }),
 
-  // Generate a 5m candle
-  // For some tiers (2, 4, 5), make current price above ORB high to show breakout border
-  const hasBreakout = (index % tierCycle.length === 2 || index % tierCycle.length === 4 || index % tierCycle.length === 5);
+    // Scenario 1: Tier 2 (Dark Green) - Perfect Pine Script criteria
+    // Open ≤ 20%, Close ≥ 80%, Body ≥ 55%, Green candle, RVOL ≥ 1.50x
+    () => {
+      const range = price * 0.004; // 0.4% range for realistic movement
+      const orbLow = price - (range * 0.8);
+      const orbOpen = orbLow + (range * 0.15); // Open at 15% of range (≤ 20% ✓)
+      const orbClose = orbLow + (range * 0.85); // Close at 85% of range (≥ 80% ✓)
+      const orbHigh = orbLow + range;
 
-  let orbHigh, orbLow, orbOpen, orbClose;
+      return {
+        candle: {
+          open: Number(orbOpen.toFixed(2)),
+          high: Number(orbHigh.toFixed(2)),
+          low: Number(orbLow.toFixed(2)),
+          close: Number(orbClose.toFixed(2)),
+          volume: Math.floor(1500000), // 1.5x average volume for Tier 2
+          timestamp: Date.now() - (60 * 60 * 1000)
+        },
+        avgVolume: Math.floor(1000000),
+        tier: 2
+      };
+    },
 
-  if (hasBreakout) {
-    // Price has broken above ORB high - show border
-    orbHigh = price * 0.998; // ORB high below current price
-    orbLow = price * 0.990;
-    orbOpen = price * 0.991;
-    orbClose = price * 0.997;
+    // Scenario 2: Tier 1 (Light Green) - Meets Tier 1 but not Tier 2
+    // Same price criteria but RVOL between 0.25x and 1.50x
+    () => {
+      const range = price * 0.003;
+      const orbLow = price - (range * 0.7);
+      const orbOpen = orbLow + (range * 0.10); // Open at 10% of range (≤ 20% ✓)
+      const orbClose = orbLow + (range * 0.90); // Close at 90% of range (≥ 80% ✓)
+      const orbHigh = orbLow + range;
+
+      return {
+        candle: {
+          open: Number(orbOpen.toFixed(2)),
+          high: Number(orbHigh.toFixed(2)),
+          low: Number(orbLow.toFixed(2)),
+          close: Number(orbClose.toFixed(2)),
+          volume: Math.floor(500000), // 0.5x average volume (Tier 1 range: 0.25x - 1.50x)
+          timestamp: Date.now() - (60 * 60 * 1000)
+        },
+        avgVolume: Math.floor(1000000),
+        tier: 1
+      };
+    },
+
+    // Scenario 3: Failed - Open position too high (> 20%)
+    () => {
+      const range = price * 0.005;
+      const orbLow = price - (range * 0.6);
+      const orbOpen = orbLow + (range * 0.30); // Open at 30% of range (> 20% ✗)
+      const orbClose = orbLow + (range * 0.85); // Close at 85% (≥ 80% ✓)
+      const orbHigh = orbLow + range;
+
+      return {
+        candle: {
+          open: Number(orbOpen.toFixed(2)),
+          high: Number(orbHigh.toFixed(2)),
+          low: Number(orbLow.toFixed(2)),
+          close: Number(orbClose.toFixed(2)),
+          volume: Math.floor(1200000), // Good volume
+          timestamp: Date.now() - (60 * 60 * 1000)
+        },
+        avgVolume: Math.floor(1000000),
+        tier: 0
+      };
+    },
+
+    // Scenario 4: Tier 2 (Dark Green) - Different price level, also broken out
+    () => {
+      const range = price * 0.006;
+      const orbLow = price * 0.992; // ORB low below current price
+      const orbOpen = orbLow + (range * 0.18); // Open at 18% (≤ 20% ✓)
+      const orbClose = orbLow + (range * 0.88); // Close at 88% (≥ 80% ✓)
+      const orbHigh = orbLow + range; // ORB high below current price (breakout!)
+
+      return {
+        candle: {
+          open: Number(orbOpen.toFixed(2)),
+          high: Number(orbHigh.toFixed(2)),
+          low: Number(orbLow.toFixed(2)),
+          close: Number(orbClose.toFixed(2)),
+          volume: Math.floor(2000000), // 2.0x average volume for Tier 2
+          timestamp: Date.now() - (60 * 60 * 1000)
+        },
+        avgVolume: Math.floor(1000000),
+        tier: 2
+      };
+    },
+
+    // Scenario 5: Failed - Close position too low (< 80%)
+    () => {
+      const range = price * 0.004;
+      const orbLow = price - (range * 0.5);
+      const orbOpen = orbLow + (range * 0.15); // Open at 15% (≤ 20% ✓)
+      const orbClose = orbLow + (range * 0.75); // Close at 75% (< 80% ✗)
+      const orbHigh = orbLow + range;
+
+      return {
+        candle: {
+          open: Number(orbOpen.toFixed(2)),
+          high: Number(orbHigh.toFixed(2)),
+          low: Number(orbLow.toFixed(2)),
+          close: Number(orbClose.toFixed(2)),
+          volume: Math.floor(1800000), // Good volume
+          timestamp: Date.now() - (60 * 60 * 1000)
+        },
+        avgVolume: Math.floor(1000000),
+        tier: 0
+      };
+    },
+
+    // Scenario 6: Failed - Red candle
+    () => {
+      const range = price * 0.005;
+      const orbLow = price - (range * 0.4);
+      const orbOpen = orbLow + (range * 0.80); // Open at 80% (close to high)
+      const orbClose = orbLow + (range * 0.10); // Close at 10% (red candle ✗)
+      const orbHigh = orbLow + range;
+
+      return {
+        candle: {
+          open: Number(orbOpen.toFixed(2)),
+          high: Number(orbHigh.toFixed(2)),
+          low: Number(orbLow.toFixed(2)),
+          close: Number(orbClose.toFixed(2)),
+          volume: Math.floor(2500000), // Excellent volume but red candle
+          timestamp: Date.now() - (60 * 60 * 1000)
+        },
+        avgVolume: Math.floor(1000000),
+        tier: 0
+      };
+    },
+
+    // Scenario 7: Tier 1 (Light Green) - Minimal Tier 1 qualification
+    // RVOL just above 0.25x threshold
+    () => {
+      const range = price * 0.0035;
+      const orbLow = price * 0.995;
+      const orbOpen = orbLow + (range * 0.20); // Open at exactly 20% (≤ 20% ✓)
+      const orbClose = orbLow + (range * 0.80); // Close at exactly 80% (≥ 80% ✓)
+      const orbHigh = orbLow + range;
+
+      return {
+        candle: {
+          open: Number(orbOpen.toFixed(2)),
+          high: Number(orbHigh.toFixed(2)),
+          low: Number(orbLow.toFixed(2)),
+          close: Number(orbClose.toFixed(2)),
+          volume: Math.floor(260000), // 0.26x average volume (just above 0.25x threshold)
+          timestamp: Date.now() - (60 * 60 * 1000)
+        },
+        avgVolume: Math.floor(1000000),
+        tier: 1
+      };
+    }
+  ];
+
+  const scenario = scenarios[index % scenarios.length];
+  const result = scenario();
+
+  // Add historical candles for all scenarios except null
+  if (result.candle) {
+    result.historicalCandles = Array.from({ length: 20 }, (_, i) => ({
+      open: Number((price * 0.98).toFixed(2)),
+      high: Number((price * 1.01).toFixed(2)),
+      low: Number((price * 0.97).toFixed(2)),
+      close: Number((price * 1.00).toFixed(2)),
+      volume: Math.floor(300000 + Math.random() * 1000000),
+      timestamp: Date.now() - ((i + 2) * 24 * 60 * 60 * 1000)
+    }));
   } else {
-    // Normal ORB - price still within or below range
-    orbHigh = price * 1.005; // ORB high slightly above current price
-    orbLow = price * 0.995; // ORB low slightly below
-    orbOpen = price * 0.996;
-    orbClose = price * 1.004;
+    result.historicalCandles = [];
   }
 
-  const candle = {
-    open: Number(orbOpen.toFixed(2)),
-    high: Number(orbHigh.toFixed(2)),
-    low: Number(orbLow.toFixed(2)),
-    close: Number(orbClose.toFixed(2)),
-    volume: Math.floor(500000 + Math.random() * 2000000),
-    timestamp: Date.now() - (60 * 60 * 1000) // 1 hour ago
-  };
-
-  // Generate some historical candles
-  const historicalCandles = Array.from({ length: 20 }, (_, i) => ({
-    open: Number((price * 0.98).toFixed(2)),
-    high: Number((price * 1.01).toFixed(2)),
-    low: Number((price * 0.97).toFixed(2)),
-    close: Number((price * 1.00).toFixed(2)),
-    volume: Math.floor(300000 + Math.random() * 1000000),
-    timestamp: Date.now() - ((i + 2) * 24 * 60 * 60 * 1000)
-  }));
-
-  return {
-    candle,
-    historicalCandles,
-    tier
-  };
+  return result;
 }
 
 /**

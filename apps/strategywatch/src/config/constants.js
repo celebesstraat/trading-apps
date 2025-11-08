@@ -17,14 +17,21 @@ export const MARKET_DATA_CONFIG = {
   RATE_LIMIT: 200 // Free tier: 200 calls/min (vs Finnhub's 60/min)
 };
 
-// Strategy Thresholds
+// Strategy Thresholds - Classic TradingView PineScript ORB parameters
 export const ORB_THRESHOLDS = {
-  MIN_RANGE_PERCENT: 0.3,          // Minimum 5m candle range as % of price
-  MIN_BODY_RATIO: 0.7,             // Candle body must be in top 70% of range
-  MIN_VOLUME_MULTIPLIER: 2,        // Volume must be 2x average first 5m
-  BREAKOUT_MIN_PERCENT: 0.1,       // Min % above high for green zone
-  BREAKOUT_MAX_PERCENT: 0.5,       // Max % above high for green zone
-  AMBER_DISTANCE_PERCENT: 0.2,     // Distance tolerance for amber zone
+  // Pine Script: No minimum range % (only tick-based minimum)
+  MIN_RANGE_PERCENT: 0,            // No minimum range % requirement
+
+  // Pine Script: minBodyFrac = 0.55 (Body ≥ fraction of range)
+  MIN_BODY_RATIO: 0.55,            // Candle body must be ≥ 55% of range
+
+  // Pine Script: rvolTier1 = 0.25, rvolTier2 = 1.50
+  TIER1_VOLUME_MULTIPLIER: 0.25,   // Tier 1: Volume must be ≥ 0.25x average first 5m
+  TIER2_VOLUME_MULTIPLIER: 1.50,   // Tier 2: Volume must be ≥ 1.50x average first 5m
+
+  // Pine Script: lowerQuantile = 0.20, upperQuantile = 0.80
+  LOWER_QUANTILE: 0.20,            // Open ≤ 20% of range
+  UPPER_QUANTILE: 0.80,            // Close ≥ 80% of range
 };
 
 export const INMERELO_THRESHOLDS = {

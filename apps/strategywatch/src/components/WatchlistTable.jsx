@@ -164,7 +164,7 @@ export function WatchlistTable({
               5m ORB{getSortIndicator('5morb')}
             </th>
             <th
-              className="sortable group-separator"
+              className="sortable group-separator-major"
               onClick={() => handleSort('10d')}
               title="% Distance from 10-Day EMA"
             >
