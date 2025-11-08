@@ -1,0 +1,109 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  background-color: var(--bg-primary);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Market Closed Banner */
+.market-closed-banner {
+  background-color: var(--status-warning);
+  color: var(--bg-primary);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  text-align: center;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-small);
+}
+
+/* Loading State */
+.loading-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-container p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-price);
+}
+
+/* Error State */
+.error-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl);
+}
+
+.error-message {
+  max-width: 600px;
+  padding: var(--spacing-xl);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--status-disconnected);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.error-message h2 {
+  color: var(--status-disconnected);
+  margin-bottom: var(--spacing-md);
+}
+
+.error-message p {
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.error-help {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.error-help ol {
+  margin-left: var(--spacing-lg);
+  color: var(--text-primary);
+}
+
+.error-help code {
+  background-color: var(--bg-secondary);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--accent-blue);
+}
+
+.error-help a {
+  color: var(--accent-blue);
+  text-decoration: underline;
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@trading-apps/market-data",
+  "version": "1.0.0",
+  "description": "Unified market data provider abstraction for trading applications",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./hooks": "./src/hooks/index.js",
+    "./providers/*": "./src/providers/*/index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "market-data",
+    "trading",
+    "alpaca",
+    "websocket",
+    "real-time"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "dependencies": {}
+}

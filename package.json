@@ -1,0 +1,18 @@
+{
+  "name": "trading-apps",
+  "version": "1.0.0",
+  "description": "Monorepo for financial trading applications",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:strategywatch": "npm run dev --workspace=strategywatch",
+    "build:strategywatch": "npm run build --workspace=strategywatch",
+    "preview:strategywatch": "npm run preview --workspace=strategywatch"
+  },
+  "keywords": ["trading", "finance", "monorepo"],
+  "author": "",
+  "license": "MIT"
+}

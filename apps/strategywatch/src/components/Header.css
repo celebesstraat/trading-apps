@@ -1,0 +1,139 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  height: var(--header-height);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.market-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.header-title {
+  font-size: var(--font-size-header);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.market-status {
+  font-size: var(--font-size-small);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.market-open {
+  background-color: rgba(0, 230, 118, 0.1);
+  color: var(--status-connected);
+  border: 1px solid var(--status-connected);
+}
+
+.market-closed {
+  background-color: rgba(255, 23, 68, 0.1);
+  color: var(--status-disconnected);
+  border: 1px solid var(--status-disconnected);
+}
+
+.market-hours {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-regular);
+}
+
+.market-hours.weekend-message {
+  font-size: calc(var(--font-size-small) - 2px);
+  font-style: italic;
+  font-weight: var(--font-weight-light);
+  color: var(--status-disconnected);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.connection-status,
+.api-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.connected {
+  background-color: var(--status-connected);
+}
+
+.status-dot.disconnected {
+  background-color: var(--status-disconnected);
+}
+
+.status-text {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.current-time {
+  font-size: var(--font-size-price);
+  color: var(--text-primary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-sm);
+}
+
+.current-time.time-market-open {
+  border: 1px solid var(--status-connected);
+}
+
+.current-time.time-market-closed {
+  border: 1px solid var(--status-disconnected);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    height: auto;
+    gap: var(--spacing-sm);
+  }
+
+  .header-left,
+  .header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

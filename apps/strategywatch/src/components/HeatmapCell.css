@@ -1,0 +1,29 @@
+.heatmap-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  min-width: var(--cell-strategy);
+  font-weight: var(--font-weight-bold);
+  transition: all var(--transition-fast);
+}
+
+.heatmap-cell-empty {
+  background-color: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.heatmap-cell.clickable {
+  cursor: pointer;
+}
+
+.heatmap-cell.clickable:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.heatmap-score {
+  font-size: var(--font-size-score);
+  letter-spacing: 0.5px;
+}

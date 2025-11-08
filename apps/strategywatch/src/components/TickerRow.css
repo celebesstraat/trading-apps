@@ -1,0 +1,68 @@
+.ticker-row {
+  transition: background-color var(--transition-fast);
+}
+
+.ticker-row:hover {
+  background-color: var(--bg-hover);
+}
+
+.ticker-cell {
+  width: var(--cell-ticker);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
+
+.ticker-symbol {
+  color: var(--accent-blue);
+  font-size: var(--font-size-ticker);
+  letter-spacing: 0.5px;
+}
+
+.time-cell {
+  width: var(--cell-time);
+  text-align: center;
+}
+
+.time {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.price-cell {
+  width: var(--cell-price);
+  text-align: center;
+}
+
+.price {
+  color: var(--text-primary);
+  font-size: var(--font-size-price);
+  font-weight: var(--font-weight-medium);
+}
+
+.ma-cell {
+  width: var(--cell-ma);
+  text-align: center;
+}
+
+.ma-percent {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+}
+
+.ma-green {
+  color: var(--status-connected);
+}
+
+.ma-red {
+  color: var(--status-disconnected);
+}
+
+/* Clickable elements */
+.ticker-symbol.clickable:hover {
+  color: var(--accent-blue-hover);
+  text-decoration: underline;
+}
+
+.price.clickable:hover {
+  color: var(--accent-blue);
+}
