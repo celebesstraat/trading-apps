@@ -24,7 +24,7 @@ export function calculateINMERELOScore({
   previousPrice,
   movingAverage,
   volumeIncreasing,
-  maType = 'MA'
+  _maType = 'MA'
 }) {
   // Validate inputs
   if (!currentPrice || !movingAverage || currentPrice <= 0 || movingAverage <= 0) {
@@ -33,7 +33,6 @@ export function calculateINMERELOScore({
 
   // Calculate distance from MA as percentage
   const distancePercent = calculatePercentDifference(currentPrice, movingAverage);
-  const absDistance = Math.abs(distancePercent);
 
   // Check if price is bouncing (moving up)
   const isBouncing = previousPrice ? currentPrice > previousPrice : false;

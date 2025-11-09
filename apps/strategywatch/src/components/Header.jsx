@@ -1,16 +1,14 @@
 import './Header.css';
 import { useState, useEffect } from 'react';
-/* eslint-disable react-hooks/set-state-in-effect */
-import { toggleMute, isMuted, isSupported } from '../utils/voiceAlerts';
+import { toggleMute } from '../utils/voiceAlerts';
 import { VoiceSettings } from './VoiceSettings';
-import { MOCK_DATA_MODE } from '../config/constants';
 import { useData } from '../context/DataContext';
 import NewsAlertBanner from './NewsAlertBanner';
 import { ModeToggle } from './ModeToggle';
 
 /**
  * Header Component
- * Displays app title, connection status, and current time
+ * Displays app title, connection status, and current time with calendar-aware market status
  *
  * @param {object} props
  * @param {boolean} props.connected WebSocket connection status
@@ -18,28 +16,26 @@ import { ModeToggle } from './ModeToggle';
  * @param {boolean} props.marketOpen Whether market is currently open
  * @param {object} props.marketStatus Market status object with timing info
  * @param {boolean} props.apiConfigured Whether API keys are configured
+ * @param {boolean} props.isHoliday Whether today is a market holiday
+ * @param {boolean} props.isWeekend Whether today is a weekend
+ * @param {boolean} props.isLoading Whether calendar data is still loading
  */
-export function Header({ connected, currentTime, marketOpen, marketStatus, apiConfigured }) {
+export function Header({ connected, currentTime, marketOpen, marketStatus, apiConfigured, isHoliday = false, isWeekend = false, isLoading = false }) {
   const {
     globalMuted,
     setGlobalMuted,
     newsItems,
-    newsConnected,
     dismissNewsItem,
     markNewsAsRead,
     getUnreadNewsCount,
     isLiveMode,
     toggleLiveMode
   } = useData();
-  const [voiceSupported, setVoiceSupported] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   const [showNewsAlert, setShowNewsAlert] = useState(false);
   const [tickerFilter, setTickerFilter] = useState(null); // For filtering news by specific ticker
 
   useEffect(() => {
-    const supported = isSupported();
-    setVoiceSupported(supported);
-
     // Listen for custom event from ticker news icons
     const handleOpenNewsAlert = (event) => {
       const ticker = event.detail?.ticker;
@@ -82,30 +78,71 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
 
   const unreadCount = getUnreadNewsCount();
 
+  /**
+   * Get CSS class for market status based on status, holiday, and weekend
+   * @param {string} status - Market status
+   * @param {boolean} isHoliday - Whether today is a holiday
+   * @param {boolean} isWeekend - Whether today is a weekend
+   * @returns {string} CSS class name
+   */
+  const getMarketStatusClass = (status, isHoliday, isWeekend) => {
+    if (status === 'Regular Hours') {
+      return 'market-open';
+    } else if (isHoliday) {
+      return 'market-holiday';
+    } else if (isWeekend) {
+      return 'market-weekend';
+    } else {
+      return 'market-closed';
+    }
+  };
+
+  /**
+   * Get display text for market status
+   * @param {string} status - Market status
+   * @param {boolean} isHoliday - Whether today is a holiday
+   * @param {boolean} isWeekend - Whether today is a weekend
+   * @returns {string} Display text
+   */
+  const getStatusDisplay = (status, isHoliday, isWeekend) => {
+    if (isHoliday) {
+      return (
+        <div>
+          🎉 {status}
+          <div className="status-subtitle">Market Holiday</div>
+        </div>
+      );
+    } else if (isWeekend) {
+      return (
+        <div>
+          {status}
+          <div className="status-subtitle">Weekend</div>
+        </div>
+      );
+    } else {
+      return status;
+    }
+  };
+
   return (
     <>
       <header className="header">
         <div className="header-left">
           <h1 className="header-title">StrategyWatch</h1>
-        {(marketStatus?.status) ? (
+        {isLoading ? (
           <div className="market-info">
-            <span className={`market-status ${marketStatus.status === 'Regular Hours' ? 'market-open' : 'market-closed'}`}>
-              {marketStatus.status === 'Weekend' ? (
-                <div>
-                  {marketStatus.status}
-                  <div className="market-hours weekend-message">
-                    {marketStatus.nextStatus}
-                  </div>
-                </div>
-              ) : (
-                marketStatus.status
-              )}
+            <span className="market-status market-loading">
+              Loading...
             </span>
-            {marketStatus.status !== 'Weekend' && (
-              <span className="market-hours mono">
-                {marketStatus.nextStatus}
-              </span>
-            )}
+          </div>
+        ) : (marketStatus?.status) ? (
+          <div className="market-info">
+            <span className={`market-status ${getMarketStatusClass(marketStatus.status, isHoliday, isWeekend)}`}>
+              {getStatusDisplay(marketStatus.status, isHoliday, isWeekend)}
+            </span>
+            <span className={`market-hours mono ${isHoliday ? 'holiday-message' : ''}`}>
+              {marketStatus.nextStatus}
+            </span>
           </div>
         ) : (
           <span className={`market-status ${marketOpen ? 'market-open' : 'market-closed'}`}>

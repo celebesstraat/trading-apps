@@ -48,19 +48,47 @@
   border: 1px solid var(--status-disconnected);
 }
 
+.market-holiday {
+  background-color: rgba(255, 183, 77, 0.15);
+  color: var(--status-warning);
+  border: 1px solid var(--status-warning);
+  animation: holidayGlow 3s ease-in-out infinite;
+}
+
+.market-weekend {
+  background-color: rgba(139, 146, 176, 0.1);
+  color: var(--text-secondary);
+  border: 1px solid var(--text-secondary);
+}
+
+.market-loading {
+  background-color: rgba(33, 150, 243, 0.1);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
 .market-hours {
   font-size: var(--font-size-small);
   color: var(--text-secondary);
   font-weight: var(--font-weight-regular);
 }
 
-.market-hours.weekend-message {
+.market-hours.weekend-message,
+.market-hours.holiday-message {
   font-size: calc(var(--font-size-small) - 2px);
   font-style: italic;
   font-weight: var(--font-weight-light);
-  color: var(--status-disconnected);
   text-transform: none;
   letter-spacing: normal;
+}
+
+.market-hours.weekend-message {
+  color: var(--text-secondary);
+}
+
+.market-hours.holiday-message {
+  color: var(--status-warning);
 }
 
 .header-right {
@@ -285,6 +313,35 @@
   50% {
     opacity: 0.5;
   }
+}
+
+@keyframes holidayGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(255, 183, 77, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(255, 183, 77, 0.6);
+  }
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.status-subtitle {
+  font-size: calc(var(--font-size-small) - 3px);
+  font-weight: var(--font-weight-light);
+  opacity: 0.8;
+  text-transform: none;
+  letter-spacing: normal;
+  margin-top: 2px;
 }
 
 /* Responsive */

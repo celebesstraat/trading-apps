@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import styles from './NewsAlertBanner.module.css';
 
 const NewsAlertBanner = ({ newsItems, onDismiss, onMarkRead, tickerFilter, onClearFilter }) => {

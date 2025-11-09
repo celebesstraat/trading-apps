@@ -1,4 +1,5 @@
 import { MARKET_CONFIG } from '../config/constants';
+import { isTradingDay, getNextTradingDay, getTodayTradingStatus } from '../services/marketCalendar';
 
 /**
  * Gets current time in Eastern Time
@@ -10,11 +11,25 @@ export function getEasternTime() {
 }
 
 /**
- * Gets the next trading day (Monday-Friday)
+ * Gets the next trading day (using calendar API for accuracy)
+ * @param {Date} currentDate Current date in ET
+ * @returns {Promise<Date>} Next trading day date
+ */
+export async function getNextTradingDayFromCalendar(currentDate) {
+  try {
+    return await getNextTradingDay(currentDate);
+  } catch (error) {
+    console.error('Error getting next trading day from calendar, falling back to weekend logic:', error);
+    return getNextTradingDayFallback(currentDate);
+  }
+}
+
+/**
+ * Fallback method to get next trading day (weekend logic only)
  * @param {Date} currentDate Current date in ET
  * @returns {Date} Next trading day date
  */
-export function getNextTradingDay(currentDate) {
+export function getNextTradingDayFallback(currentDate) {
   const nextDay = new Date(currentDate);
   const daysToAdd = 1;
 
@@ -48,10 +63,49 @@ export function formatDateForDisplay(date) {
 }
 
 /**
- * Checks if the market is currently open (Mon-Fri, 9:30am-4:00pm ET)
+ * Checks if the market is currently open (using calendar API for accuracy)
+ * @returns {Promise<boolean>} True if market is open
+ */
+export async function isMarketOpen() {
+  try {
+    const et = getEasternTime();
+    const today = et.toISOString().split('T')[0];
+
+    // Check if today is a trading day
+    const isTodayTradingDay = await isTradingDay(today);
+    if (!isTodayTradingDay) {
+      return false;
+    }
+
+    // Check market hours
+    const hour = et.getHours();
+    const minute = et.getMinutes();
+
+    // Before market open (9:30am)
+    if (hour < MARKET_CONFIG.MARKET_OPEN_HOUR) {
+      return false;
+    }
+    if (hour === MARKET_CONFIG.MARKET_OPEN_HOUR && minute < MARKET_CONFIG.MARKET_OPEN_MINUTE) {
+      return false;
+    }
+
+    // After market close (4:00pm)
+    if (hour >= MARKET_CONFIG.MARKET_CLOSE_HOUR) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error checking market open status, falling back to weekend logic:', error);
+    return isMarketOpenFallback();
+  }
+}
+
+/**
+ * Fallback method to check if market is open (weekend logic only)
  * @returns {boolean} True if market is open
  */
-export function isMarketOpen() {
+export function isMarketOpenFallback() {
   const et = getEasternTime();
   const day = et.getDay();
   const hour = et.getHours();
@@ -81,10 +135,39 @@ export function isMarketOpen() {
 /**
  * Checks if ORB strategy is active (market open + after 9:35am ET)
  * ORB only becomes relevant after the first 5-minute candle is complete
+ * @returns {Promise<boolean>} True if ORB should be displayed
+ */
+export async function isORBActive() {
+  try {
+    if (!(await isMarketOpen())) {
+      return false;
+    }
+
+    const et = getEasternTime();
+    const hour = et.getHours();
+    const minute = et.getMinutes();
+
+    // ORB active from 9:35am onwards
+    if (hour > MARKET_CONFIG.ORB_START_HOUR) {
+      return true;
+    }
+    if (hour === MARKET_CONFIG.ORB_START_HOUR && minute >= MARKET_CONFIG.ORB_START_MINUTE) {
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error checking ORB active status, falling back to weekend logic:', error);
+    return isORBActiveFallback();
+  }
+}
+
+/**
+ * Fallback method to check if ORB is active (weekend logic only)
  * @returns {boolean} True if ORB should be displayed
  */
-export function isORBActive() {
-  if (!isMarketOpen()) {
+export function isORBActiveFallback() {
+  if (!isMarketOpenFallback()) {
     return false;
   }
 
@@ -160,10 +243,92 @@ export function formatTimestamp(timestamp) {
 }
 
 /**
- * Gets market opening and closing times for today
- * @returns {object} { openTime, closeTime, status } with formatted times and status
+ * Gets market opening and closing times for today (using calendar API)
+ * @returns {Promise<object>} { openTime, closeTime, status, isHoliday } with formatted times and status
  */
-export function getMarketStatus() {
+export async function getMarketStatus() {
+  try {
+    const et = getEasternTime();
+    const hour = et.getHours();
+    const minute = et.getMinutes();
+
+    // Check if today is a trading day using calendar API
+    const tradingStatus = await getTodayTradingStatus();
+    const isTodayTradingDay = tradingStatus.isTradingDay;
+
+    // Format market hours
+    const openTime = tradingStatus.openTime ? `${formatTime(tradingStatus.openTime)} ET` : '9:30 AM ET';
+    const closeTime = tradingStatus.closeTime ? `${formatTime(tradingStatus.closeTime)} ET` : '4:00 PM ET';
+
+    // Check if today is not a trading day (holiday or weekend)
+    if (!isTodayTradingDay) {
+      const day = et.getDay();
+      const isWeekend = day === 0 || day === 6;
+      const status = isWeekend ? 'Weekend' : 'Market Holiday';
+
+      // Get next trading day
+      const nextTradingDay = await getNextTradingDay(et);
+      const nextTradingDate = formatDateForDisplay(nextTradingDay);
+
+      return {
+        openTime,
+        closeTime,
+        status,
+        nextStatus: `Opens ${nextTradingDate} ${openTime}`,
+        isHoliday: !isWeekend,
+        isWeekend
+      };
+    }
+
+    // Today is a trading day, check time-based status
+    // Check if before market open
+    if (hour < MARKET_CONFIG.MARKET_OPEN_HOUR ||
+        (hour === MARKET_CONFIG.MARKET_OPEN_HOUR && minute < MARKET_CONFIG.MARKET_OPEN_MINUTE)) {
+      return {
+        openTime,
+        closeTime,
+        status: 'Pre-market',
+        nextStatus: `Opens today ${openTime}`,
+        isHoliday: false,
+        isWeekend: false
+      };
+    }
+
+    // Check if after market close
+    if (hour >= MARKET_CONFIG.MARKET_CLOSE_HOUR) {
+      const nextTradingDay = await getNextTradingDay(et);
+      const nextTradingDate = formatDateForDisplay(nextTradingDay);
+
+      return {
+        openTime,
+        closeTime,
+        status: 'After-hours',
+        nextStatus: `Opens ${nextTradingDate} ${openTime}`,
+        isHoliday: false,
+        isWeekend: false
+      };
+    }
+
+    // Market is open
+    return {
+      openTime,
+      closeTime,
+      status: 'Regular Hours',
+      nextStatus: `Closes today ${closeTime}`,
+      isHoliday: false,
+      isWeekend: false
+    };
+  } catch (error) {
+    console.error('Error in getMarketStatus, falling back to weekend logic:', error);
+    return getMarketStatusFallback();
+  }
+}
+
+/**
+ * Fallback method to get market status (weekend logic only)
+ * @returns {object} { openTime, closeTime, status, isHoliday, isWeekend } with formatted times and status
+ */
+export function getMarketStatusFallback() {
   try {
     const et = getEasternTime();
     const day = et.getDay();
@@ -176,13 +341,15 @@ export function getMarketStatus() {
 
     // Check if weekend
     if (day === 0 || day === 6) {
-      const nextTradingDay = getNextTradingDay(et);
+      const nextTradingDay = getNextTradingDayFallback(et);
       const nextTradingDate = formatDateForDisplay(nextTradingDay);
       return {
         openTime,
         closeTime,
         status: 'Weekend',
-        nextStatus: `Opens ${nextTradingDate} ${openTime}`
+        nextStatus: `Opens ${nextTradingDate} ${openTime}`,
+        isHoliday: false,
+        isWeekend: true
       };
     }
 
@@ -193,19 +360,23 @@ export function getMarketStatus() {
         openTime,
         closeTime,
         status: 'Pre-market',
-        nextStatus: `Opens today ${openTime}`
+        nextStatus: `Opens today ${openTime}`,
+        isHoliday: false,
+        isWeekend: false
       };
     }
 
     // Check if after market close
     if (hour >= MARKET_CONFIG.MARKET_CLOSE_HOUR) {
-      const nextTradingDay = getNextTradingDay(et);
+      const nextTradingDay = getNextTradingDayFallback(et);
       const nextTradingDate = formatDateForDisplay(nextTradingDay);
       return {
         openTime,
         closeTime,
         status: 'After-hours',
-        nextStatus: `Opens ${nextTradingDate} ${openTime}`
+        nextStatus: `Opens ${nextTradingDate} ${openTime}`,
+        isHoliday: false,
+        isWeekend: false
       };
     }
 
@@ -214,15 +385,31 @@ export function getMarketStatus() {
       openTime,
       closeTime,
       status: 'Regular Hours',
-      nextStatus: `Closes today ${closeTime}`
+      nextStatus: `Closes today ${closeTime}`,
+      isHoliday: false,
+      isWeekend: false
     };
   } catch (error) {
-    console.error('Error in getMarketStatus:', error);
+    console.error('Error in getMarketStatusFallback:', error);
     return {
       openTime: '9:30 AM ET',
       closeTime: '4:00 PM ET',
       status: 'Unknown',
-      nextStatus: 'Status unavailable'
+      nextStatus: 'Status unavailable',
+      isHoliday: false,
+      isWeekend: false
     };
   }
+}
+
+/**
+ * Formats time from 24-hour HH:MM to 12-hour format
+ * @param {string} time24 - Time in HH:MM format
+ * @returns {string} Formatted time (e.g., "9:30 AM")
+ */
+function formatTime(time24) {
+  const [hours, minutes] = time24.split(':').map(Number);
+  const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 }

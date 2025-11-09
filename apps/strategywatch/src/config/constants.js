@@ -17,6 +17,11 @@ export const MARKET_DATA_CONFIG = {
   RATE_LIMIT: 200 // Free tier: 200 calls/min (vs Finnhub's 60/min)
 };
 
+// Finnhub API Configuration (for NBBO-quality historical data)
+export const FINNHUB_API_KEY = import.meta.env.VITE_FINNHUB_API_KEY;
+export const FINNHUB_REST_URL = 'https://finnhub.io/api/v1';
+export const FINNHUB_WS_URL = 'wss://ws.finnhub.io';
+
 // Strategy Thresholds - Classic TradingView PineScript ORB parameters
 export const ORB_THRESHOLDS = {
   // Pine Script: No minimum range % (only tick-based minimum)

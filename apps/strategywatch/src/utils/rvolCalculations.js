@@ -240,6 +240,87 @@ export const getRVolColor = (rvol) => {
 };
 
 /**
+ * Get granular RVol color class for progress bar styling
+ * @param {number|null} rvol - RVol ratio value
+ * @returns {string} CSS class name for the appropriate color range
+ */
+export const getRVolProgressColor = (rvol) => {
+  if (rvol === null || rvol === undefined || isNaN(rvol)) {
+    return 'rvol-normal';
+  }
+
+  if (rvol < 0.25) {
+    return 'rvol-very-low'; // Red (0 - 0.25)
+  } else if (rvol < 0.5) {
+    return 'rvol-low'; // Amber (0.25 - 0.5)
+  } else if (rvol < 1.5) {
+    return 'rvol-normal'; // White (0.5 - 1.5)
+  } else if (rvol < 2.0) {
+    return 'rvol-high'; // Light green (1.5 - 2.0)
+  } else {
+    return 'rvol-very-high'; // Dark green (2.0+)
+  }
+};
+
+/**
+ * Map RVol value to progress bar width percentage
+ * Centers on 1.0x at 50% width, scales logarithmically above and below
+ * @param {number|null} rvol - RVol ratio value
+ * @returns {number} Width percentage (0-100)
+ */
+export const getRVolProgressWidth = (rvol) => {
+  if (rvol === null || rvol === undefined || isNaN(rvol)) {
+    return 50; // Default to center line
+  }
+
+  // Handle values below 1.0x (scale from 0-50%)
+  if (rvol <= 1.0) {
+    // Map 0-1 range to 0-50%
+    return rvol * 50;
+  }
+
+  // Handle values above 1.0x (scale from 50-100%)
+  // Use logarithmic scaling for better visualization of high values
+  const maxDisplay = 4.0; // Maximum value to display (hits 100%)
+  const clampedRvol = Math.min(rvol, maxDisplay);
+
+  // Map 1-4 range to 50-100%
+  // 1.0x = 50%, 1.5x = ~63%, 2.0x = 75%, 3.0x = 92%, 4.0x = 100%
+  const percentage = 50 + ((clampedRvol - 1.0) / (maxDisplay - 1.0)) * 50;
+
+  return Math.min(100, Math.max(0, percentage));
+};
+
+/**
+ * Map Today's Move ratio to progress bar width percentage
+ * Centers on 1.0x at 50% width, scales logarithmically above and below
+ * @param {number|null} ratio - Today's Move ratio (1.0 = 100% of ADR)
+ * @returns {number} Width percentage (0-100)
+ */
+export const getTodayMoveProgressWidth = (ratio) => {
+  if (ratio === null || ratio === undefined || isNaN(ratio)) {
+    return 50; // Default to center line
+  }
+
+  // Handle values below 1.0x (scale from 0-50%)
+  if (ratio <= 1.0) {
+    // Map 0-1 range to 0-50%
+    return ratio * 50;
+  }
+
+  // Handle values above 1.0x (scale from 50-100%)
+  // Use logarithmic scaling for better visualization of high values
+  const maxDisplay = 3.0; // Maximum value to display (hits 100%)
+  const clampedRatio = Math.min(ratio, maxDisplay);
+
+  // Map 1-3 range to 50-100%
+  // 1.0x = 50%, 1.5x = ~67%, 2.0x = 75%, 2.5x = 83%, 3.0x = 100%
+  const percentage = 50 + ((clampedRatio - 1.0) / (maxDisplay - 1.0)) * 50;
+
+  return Math.min(100, Math.max(0, percentage));
+};
+
+/**
  * Get RVol tooltip message
  * @param {Object} rvolData - RVol calculation result
  * @returns {string} Tooltip text

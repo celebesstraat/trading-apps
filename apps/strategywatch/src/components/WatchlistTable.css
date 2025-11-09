@@ -50,14 +50,34 @@
 
 /* Column group separators - subtle borders between logical groupings */
 .group-separator {
-  border-left: 2px solid rgba(30, 36, 57, 0.8);
+  position: relative;
   padding-left: 20px;
+}
+
+.group-separator::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: rgba(30, 36, 57, 0.8);
 }
 
 /* Distinct separator for major column boundaries */
 .group-separator-major {
-  border-left: 3px solid rgba(42, 49, 80, 1);
+  position: relative;
   padding-left: 28px;
+}
+
+.group-separator-major::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: rgba(42, 49, 80, 1);
 }
 
 /* Empty state */

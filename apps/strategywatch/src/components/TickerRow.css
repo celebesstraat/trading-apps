@@ -145,6 +145,27 @@
   color: var(--accent-blue);
 }
 
+.change-percent.clickable:hover,
+.rvol-value.clickable:hover {
+  color: var(--accent-blue);
+  cursor: pointer;
+}
+
+.adr-progress-container.clickable:hover {
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.orb-indicator.clickable:hover {
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.ma-dual-display.clickable:hover {
+  cursor: pointer;
+  opacity: 0.9;
+}
+
 /* 5m ORB cell styling */
 .orb-cell {
   width: var(--cell-ma);
@@ -266,13 +287,70 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, rgba(0, 255, 0, 0.2), rgba(0, 255, 0, 0.4));
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.6));
   transition: width var(--transition-fast), background var(--transition-fast);
 }
 
 /* Red color when >= 100% of ADR */
 .adr-progress-bar.over-adr {
   background: linear-gradient(90deg, rgba(255, 0, 0, 0.2), rgba(255, 0, 0, 0.4));
+}
+
+/* Today's Move Color Ranges (similar to RVOL but for ADR ratio) */
+.adr-progress-bar.adr-very-low {
+  /* Red: < 0.5x ADR */
+  background: linear-gradient(90deg,
+    rgba(255, 23, 68, 0.3),
+    rgba(255, 23, 68, 0.6)
+  );
+}
+
+.adr-progress-bar.adr-low {
+  /* Amber: 0.5-0.8x ADR */
+  background: linear-gradient(90deg,
+    rgba(255, 183, 77, 0.3),
+    rgba(255, 183, 77, 0.6)
+  );
+}
+
+.adr-progress-bar.adr-normal {
+  /* White: 0.8-1.2x ADR */
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.4)
+  );
+}
+
+.adr-progress-bar.adr-high {
+  /* Light green: 1.2-1.5x ADR */
+  background: linear-gradient(90deg,
+    rgba(129, 199, 132, 0.3),
+    rgba(129, 199, 132, 0.6)
+  );
+}
+
+.adr-progress-bar.adr-very-high {
+  /* Dark green: > 1.5x ADR */
+  background: linear-gradient(90deg,
+    rgba(0, 230, 118, 0.4),
+    rgba(0, 230, 118, 0.7)
+  );
+}
+
+/* Center line for Today's Move (1.0x ADR) */
+.adr-progress-center-line {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  z-index: 0;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
 }
 
 .adr-progress-text {
@@ -304,6 +382,120 @@
   background-color: var(--bg-hover);
   opacity: 1;
   transform: scale(1.15);
+}
+
+/* RVOL Progress Bar Styling */
+.rvol-progress-container {
+  position: relative;
+  width: 100%;
+  height: 24px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: default;
+}
+
+.rvol-progress-container.clickable:hover {
+  background-color: var(--bg-hover);
+}
+
+.rvol-progress-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.rvol-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  transition: width var(--transition-fast), background var(--transition-fast);
+  border-radius: 4px;
+}
+
+/* RVOL Color Ranges */
+.rvol-progress-bar.rvol-very-low {
+  /* Red: 0 - 0.25 */
+  background: linear-gradient(90deg,
+    rgba(255, 23, 68, 0.3),
+    rgba(255, 23, 68, 0.6)
+  );
+}
+
+.rvol-progress-bar.rvol-low {
+  /* Amber: 0.25 - 0.5 */
+  background: linear-gradient(90deg,
+    rgba(255, 183, 77, 0.3),
+    rgba(255, 183, 77, 0.6)
+  );
+}
+
+.rvol-progress-bar.rvol-normal {
+  /* White: 0.5 - 1.5 */
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.4)
+  );
+}
+
+.rvol-progress-bar.rvol-high {
+  /* Light green: 1.5 - 2.0 */
+  background: linear-gradient(90deg,
+    rgba(129, 199, 132, 0.3),
+    rgba(129, 199, 132, 0.6)
+  );
+}
+
+.rvol-progress-bar.rvol-very-high {
+  /* Dark green: 2.0+ */
+  background: linear-gradient(90deg,
+    rgba(0, 230, 118, 0.4),
+    rgba(0, 230, 118, 0.7)
+  );
+}
+
+/* Center line indicator for 1.0x (normal volume) */
+.rvol-progress-center-line {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  z-index: 0;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+}
+
+
+.rvol-progress-text {
+  position: relative;
+  z-index: 1;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  line-height: 24px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure clickable progress bars have proper cursor */
+.rvol-progress-container.clickable {
+  cursor: pointer;
+}
+
+/* RVOL cell styling */
+.rvol-progress-cell {
+  width: var(--cell-ma);
+  text-align: center;
+  padding: 8px 12px;
 }
 
 .mute-button-inline:active {
@@ -396,16 +588,17 @@
 }
 
 /* MA Proximity Highlighting - Compact border box around data within cell */
+/* Green box: ±5% of 20D ADR% (closer to MA) */
 .ma-proximity-highlight .ma-dual-display {
   position: relative;
   border: 1px solid #00ff00;
   border-radius: 2px;
   box-shadow: 0 0 8px rgba(0, 255, 0, 0.6), inset 0 0 4px rgba(0, 255, 0, 0.2);
   animation: pulse-ma-proximity-border 2s ease-in-out infinite alternate;
-  padding: 4px 6px;
-  margin: -4px -6px;
+  padding: 3px 5px;
+  margin: -3px -5px;
   display: inline-block;
-  min-width: 60px;
+  min-width: 55px;
   text-align: center;
 }
 
@@ -416,4 +609,17 @@
   to {
     box-shadow: 0 0 12px rgba(0, 255, 0, 0.8), inset 0 0 6px rgba(0, 255, 0, 0.3);
   }
+}
+
+/* Amber box: ±10% of 20D ADR% (moderately close to MA) */
+/* Slightly wider than green box to indicate wider boundary */
+.ma-proximity-amber .ma-dual-display {
+  position: relative;
+  border: 1.5px solid rgba(255, 165, 0, 0.5);
+  border-radius: 3px;
+  padding: 5px 10px;
+  margin: -5px -10px;
+  display: inline-block;
+  min-width: 70px;
+  text-align: center;
 }

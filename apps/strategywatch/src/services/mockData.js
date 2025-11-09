@@ -511,7 +511,6 @@ export function createDynamicMockData(watchlist) {
    * @returns {object} Updated ORB data
    */
   function updateOrbData(currentOrbData) {
-    const now = Date.now();
     const updatedOrbData = { ...currentOrbData };
 
     // Randomly change ORB status for some tickers (5% chance each update)

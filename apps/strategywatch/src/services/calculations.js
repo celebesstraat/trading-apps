@@ -385,31 +385,43 @@ export function get5mORBDetails({
 
 /**
  * Checks if current price is close to any Moving Average based on ADR% threshold
- * Highlights MA levels when price is within ±(ADR%/20) of the MA value
+ * Highlights MA levels when price is within ±5% (green) or ±10% (amber) of 20D ADR%
  *
  * @param {number} currentPrice Current stock price
  * @param {number} maValue Moving average value to check
  * @param {number} adrPercent 20-Day ADR percentage
- * @returns {object} { isClose: boolean, distancePercent: number, thresholdPercent: number }
+ * @returns {object} { isClose: boolean, isModeratelyClose: boolean, distancePercent: number, greenThreshold: number, amberThreshold: number }
  */
 export function checkPriceProximityToMA(currentPrice, maValue, adrPercent) {
   if (!currentPrice || !maValue || !adrPercent) {
-    return { isClose: false, distancePercent: 0, thresholdPercent: 0 };
+    return {
+      isClose: false,
+      isModeratelyClose: false,
+      distancePercent: 0,
+      greenThreshold: 0,
+      amberThreshold: 0
+    };
   }
 
-  // Calculate threshold: ±(ADR% / 20)
-  const thresholdPercent = adrPercent / 20;
+  // Calculate thresholds:
+  // Green box: ±5% of 20D ADR% (ADR% / 20 = ADR% * 0.05)
+  // Amber box: ±10% of 20D ADR% (ADR% / 10 = ADR% * 0.10)
+  const greenThreshold = adrPercent / 20;  // ±5%
+  const amberThreshold = adrPercent / 10;  // ±10%
 
   // Calculate actual distance percentage
   const distancePercent = Math.abs(((currentPrice - maValue) / maValue) * 100);
 
-  // Check if price is within threshold
-  const isClose = distancePercent <= thresholdPercent;
+  // Check if price is within thresholds
+  const isClose = distancePercent <= greenThreshold;
+  const isModeratelyClose = distancePercent <= amberThreshold;
 
   return {
     isClose,
+    isModeratelyClose,
     distancePercent,
-    thresholdPercent
+    greenThreshold,
+    amberThreshold
   };
 }
 

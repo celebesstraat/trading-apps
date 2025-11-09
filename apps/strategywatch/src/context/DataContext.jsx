@@ -7,7 +7,7 @@ import { useMarketAnnouncements } from '../hooks/useMarketAnnouncements';
 import { fetchDailyCandlesBatch, fetchQuoteBatch, fetchHistorical5mCandlesForRVol, fetchTodayIntradayCandles, isAPIConfigured } from '../services/marketData';
 import { getMovingAverages, calculateADRPercent, evaluate5mORB } from '../services/calculations';
 import { isORBActive } from '../utils/marketTime';
-import { generateMockData, createDynamicMockData } from '../services/mockData';
+import { createDynamicMockData } from '../services/mockData';
 import { calculateRVol, isMarketHours } from '../utils/rvolCalculations';
 import * as RVolDB from '../services/rvolDatabase';
 import { isMuted } from '../utils/voiceAlerts';
@@ -21,7 +21,7 @@ const DataContext = createContext(null);
  */
 export function DataProvider({ children }) {
   // Market hours tracking
-  const { marketOpen, currentTime, marketStatus } = useMarketHours();
+  const { marketOpen, currentTime, marketStatus, isHoliday, isWeekend, isLoading: isCalendarLoading } = useMarketHours();
 
   // WebSocket connection for real-time prices (only when not in mock mode)
   const { prices: wsPrices, connected, error: wsError } = useRealtimePrice(
@@ -61,7 +61,6 @@ export function DataProvider({ children }) {
 
   // News state
   const [newsItems, setNewsItems] = useState([]);
-  const [newsService, setNewsService] = useState(null);
   const [newsConnected, setNewsConnected] = useState(false);
 
   // Fetch historical data on mount (or use mock data)
@@ -81,10 +80,31 @@ export function DataProvider({ children }) {
           setMovingAverages(dynamicData.initialData.movingAverages);
           setOrb5mData(dynamicData.initialData.orb5mData);
 
-          // Generate mock RVol data
+          // Generate mock RVol data with diverse values to test all color ranges
           const mockRVolData = {};
-          WATCHLIST.forEach(ticker => {
-            const mockRVol = 0.5 + Math.random() * 3; // Random RVol between 0.5x and 3.5x
+          const testRVolValues = [
+            0.1,  // Very low (red)
+            0.2,  // Very low (red)
+            0.3,  // Low (amber)
+            0.4,  // Low (amber)
+            0.8,  // Normal (white)
+            1.0,  // Normal (white) - exactly at center
+            1.2,  // Normal (white)
+            1.6,  // High (light green)
+            1.9,  // High (light green)
+            2.3,  // Very high (dark green)
+            3.1,  // Very high (dark green)
+          ];
+
+          WATCHLIST.forEach((ticker, index) => {
+            // Use test values for first few tickers, then random
+            let mockRVol;
+            if (index < testRVolValues.length) {
+              mockRVol = testRVolValues[index];
+            } else {
+              mockRVol = 0.5 + Math.random() * 3; // Random RVol between 0.5x and 3.5x
+            }
+
             mockRVolData[ticker] = {
               rvol: mockRVol,
               currentCumulative: Math.floor(Math.random() * 10000000), // Mock volume
@@ -108,8 +128,13 @@ export function DataProvider({ children }) {
         setRVolData({});
         setOrb5mData({});
 
-        // Fetch daily candles for all tickers
+        // Fetch daily candles for all tickers using Alpaca (IEX quality)
+        console.log('[DataContext] Fetching historical bars from Alpaca (IEX)...');
         const candlesData = await fetchDailyCandlesBatch(WATCHLIST);
+
+        // Fetch quotes with previous close from Alpaca
+        console.log('[DataContext] Fetching previous close from Alpaca...');
+        const quotesData = await fetchQuoteBatch(WATCHLIST);
 
         // Calculate moving averages and ADR%
         const mas = {};
@@ -122,8 +147,20 @@ export function DataProvider({ children }) {
           }
         });
 
+        // Extract previous close from quote data into initial price data
+        const initialPrices = {};
+        Object.entries(quotesData).forEach(([ticker, quote]) => {
+          initialPrices[ticker] = {
+            previousClose: quote.previousClose,
+            timestamp: Date.now()
+          };
+        });
+
         setHistoricalData(candlesData);
         setMovingAverages(mas);
+        setMergedPrices(initialPrices); // Set previous close before WebSocket data arrives
+        console.log(`[DataContext] MAs calculated from Alpaca IEX data for ${Object.keys(mas).length} tickers`);
+        console.log(`[DataContext] Previous close loaded for ${Object.keys(quotesData).length} tickers`);
       } catch (err) {
         console.error('Error fetching historical data:', err);
         setError('Failed to load historical data: ' + err.message);
@@ -145,149 +182,123 @@ export function DataProvider({ children }) {
     // Clear previous news when switching modes
     setNewsItems([]);
 
-    const newsServiceInstance = isLiveMode
-      ? createRealNewsService()
-      : createMockNewsService();
-
-    setNewsService(newsServiceInstance);
-
-    return () => {
-      if (newsServiceInstance) {
-        newsServiceInstance.disconnect();
+    // Helper function to create real news service
+    const createRealNewsService = () => {
+      if (!isAPIConfigured()) {
+        console.warn('API keys not configured. Using mock news service.');
+        return createMockNewsService();
       }
-      setNewsService(null);
+
+      const apiKey = import.meta.env.VITE_ALPACA_API_KEY_ID;
+      const secretKey = import.meta.env.VITE_ALPACA_SECRET_KEY;
+
+      if (!apiKey || !secretKey) {
+        console.warn('Alpaca API keys not found. Using mock news service.');
+        return createMockNewsService();
+      }
+
+      console.log('📰 Creating real Alpaca news service');
       setNewsConnected(false);
-    };
-  }, [isLiveMode]);
 
-  // Helper function to create real news service
-  const createRealNewsService = () => {
-    if (!isAPIConfigured()) {
-      console.warn('API keys not configured. Using mock news service.');
-      return createMockNewsService();
-    }
+      return createNewsService(
+        apiKey,
+        secretKey,
+        (newsItem) => {
+          const newsService = createNewsService(apiKey, secretKey);
+          const filteredNews = newsService.filterNewsForWatchlist(newsItem, WATCHLIST);
 
-    const apiKey = import.meta.env.VITE_ALPACA_API_KEY_ID;
-    const secretKey = import.meta.env.VITE_ALPACA_SECRET_KEY;
-
-    if (!apiKey || !secretKey) {
-      console.warn('Alpaca API keys not found. Using mock news service.');
-      return createMockNewsService();
-    }
-
-    console.log('📰 Creating real Alpaca news service');
-    setNewsConnected(false);
-
-    return createNewsService(
-      apiKey,
-      secretKey,
-      (newsItem) => {
-        const newsService = createNewsService(apiKey, secretKey);
-        const filteredNews = newsService.filterNewsForWatchlist(newsItem, WATCHLIST);
-
-        if (filteredNews) {
-          setNewsItems(prev => {
-            const updated = [filteredNews, ...prev.slice(0, 49)];
-            return updated;
-          });
-        }
-      }
-    );
-  };
-
-  // Helper function to create mock news service
-  const createMockNewsService = () => {
-    console.log('🧪 Creating mock news service');
-    setNewsConnected(true);
-
-    // Simulate receiving mock news after 3 seconds
-    const mockNewsTimeout = setTimeout(() => {
-      const mockNews = [
-        {
-          id: 'mock-1',
-          headline: 'AAPL Announces New iPhone Features',
-          summary: 'Apple reveals groundbreaking new features for upcoming iPhone lineup, expected to boost sales significantly.',
-          author: 'Tech Reporter',
-          source: 'Reuters',
-          url: 'https://example.com/news/aapl-iphone',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          symbols: ['AAPL']
-        },
-        {
-          id: 'mock-2',
-          headline: 'TSLA Expands Gigafactory Operations',
-          summary: 'Tesla announces expansion plans for Texas gigafactory, increasing production capacity by 50%.',
-          author: 'Auto Analyst',
-          source: 'Bloomberg',
-          url: 'https://example.com/news/tsla-gigafactory',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          symbols: ['TSLA']
-        },
-        {
-          id: 'mock-3',
-          headline: 'NVDA Reports Strong Q3 Earnings',
-          summary: 'NVIDIA exceeds expectations with record quarterly revenue driven by AI chip demand.',
-          author: 'Market Watch',
-          source: 'CNBC',
-          url: 'https://example.com/news/nvda-earnings',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          symbols: ['NVDA']
-        }
-      ];
-
-      mockNews.forEach((newsItem, index) => {
-        setTimeout(() => {
-          console.log('🧪 Simulating news item:', newsItem.headline);
-
-          const mentionedSymbols = newsItem.symbols.filter(symbol =>
-            WATCHLIST.includes(symbol)
-          );
-
-          if (mentionedSymbols.length > 0) {
-            const filteredNews = {
-              ...newsItem,
-              relevanceScore: 1,
-              mentionedSymbols,
-              isRelevant: true
-            };
-
+          if (filteredNews) {
             setNewsItems(prev => {
               const updated = [filteredNews, ...prev.slice(0, 49)];
               return updated;
             });
           }
-        }, index * 2000); // Send each news item 2 seconds apart
-      });
-    }, 3000); // Start after 3 seconds
-
-    return {
-      disconnect: () => {
-        clearTimeout(mockNewsTimeout);
-        console.log('🧪 Mock news service disconnected');
-      },
-      getConnectionStatus: () => ({ isConnected: true, reconnectAttempts: 0 }),
-      filterNewsForWatchlist: (newsItem, watchlistSymbols) => {
-        const mentionedSymbols = newsItem.symbols.filter(symbol =>
-          watchlistSymbols.includes(symbol)
-        );
-
-        if (mentionedSymbols.length === 0) {
-          return null;
         }
-
-        return {
-          ...newsItem,
-          relevanceScore: 1,
-          mentionedSymbols,
-          isRelevant: true
-        };
-      }
+      );
     };
-  };
 
+    // Helper function to create mock news service
+    const createMockNewsService = () => {
+      console.log('🧪 Creating mock news service');
+      setNewsConnected(true);
+
+      // Simulate receiving mock news after 3 seconds
+      const mockNewsTimeout = setTimeout(() => {
+        const mockNews = [
+          {
+            id: 'mock-1',
+            headline: 'AAPL Announces New iPhone Features',
+            summary: 'Apple reveals groundbreaking new features for upcoming iPhone lineup, expected to boost sales significantly.',
+            author: 'Tech Reporter',
+            source: 'Reuters',
+            url: 'https://example.com/news/aapl-iphone',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            symbols: ['AAPL'],
+            mentionedSymbols: ['AAPL'],
+            isRelevant: true,
+            isRead: false,
+            createdAt: Date.now()
+          },
+          {
+            id: 'mock-2',
+            headline: 'Federal Reserve Signals Rate Changes',
+            summary: 'Fed officials indicate potential adjustments to monetary policy in response to current economic indicators.',
+            author: 'Financial Analyst',
+            source: 'Bloomberg',
+            url: 'https://example.com/news/fed-rates',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            symbols: ['SPY', 'QQQ'],
+            mentionedSymbols: ['SPY', 'QQQ'],
+            isRelevant: true,
+            isRead: false,
+            createdAt: Date.now()
+          },
+          {
+            id: 'mock-3',
+            headline: 'Tech Earnings Beat Expectations',
+            summary: 'Major technology companies report quarterly earnings exceeding analyst estimates, driving market optimism.',
+            author: 'Market Correspondent',
+            source: 'CNBC',
+            url: 'https://example.com/news/tech-earnings',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            symbols: ['MSFT', 'GOOGL', 'META', 'AMZN'],
+            mentionedSymbols: ['MSFT', 'GOOGL', 'META', 'AMZN'],
+            isRelevant: true,
+            isRead: false,
+            createdAt: Date.now()
+          }
+        ];
+
+        setNewsItems(prev => {
+          const existingIds = new Set(prev.map(item => item.id));
+          const newNews = mockNews.filter(item => !existingIds.has(item.id));
+          return [...newNews, ...prev];
+        });
+      }, 3000);
+
+      return {
+        disconnect: () => {
+          clearTimeout(mockNewsTimeout);
+        }
+      };
+    };
+
+    const newsServiceInstance = isLiveMode
+      ? createRealNewsService()
+      : createMockNewsService();
+
+    return () => {
+      if (newsServiceInstance) {
+        newsServiceInstance.disconnect();
+      }
+      setNewsConnected(false);
+    };
+  }, [isLiveMode]);
+
+  
   // Dynamic mock data updates (only in test mode or mock mode)
   useEffect(() => {
     // Don't run updates in LIVE mode unless MOCK_DATA_MODE is globally enabled
@@ -338,7 +349,7 @@ export function DataProvider({ children }) {
     }, 2000); // Update every 2 seconds for realistic movement
 
     return () => clearInterval(interval);
-  }, [MOCK_DATA_MODE, isLiveMode, dynamicMockData]);
+  }, [isLiveMode, dynamicMockData]);
 
   // Merge WebSocket prices into state (skip in test mode or mock mode)
   useEffect(() => {
@@ -373,18 +384,12 @@ export function DataProvider({ children }) {
         // Merge with existing prices
         setMergedPrices(prev => {
           const updated = { ...prev };
-          let hasChanges = false;
-
           Object.entries(quotes).forEach(([ticker, quoteData]) => {
             const existingData = prev[ticker];
             const existingAge = existingData?.timestamp ? Date.now() - existingData.timestamp : Infinity;
 
             // Always use REST data in REST-only mode, or if stale in hybrid mode
             if (DATA_MODE === 'rest' || existingAge > 10000) {
-              const priceChanged = existingData?.price !== quoteData.price;
-              if (priceChanged || !existingData) {
-                hasChanges = true;
-              }
               updated[ticker] = quoteData;
             }
           });
@@ -487,22 +492,25 @@ export function DataProvider({ children }) {
 
             // === STEP 4: Calculate ORB (if ORB is active) ===
             if (shouldFetchORB) {
-              // Extract first 5m candle from today's data
+              // Extract first 5m candle from today's data (Alpaca)
               const first5mCandle = todayCandles && todayCandles.length > 0 ? todayCandles[0] : null;
 
               // Extract first 5m candles from historical data using our new helper
               const historicalFirst5mCandles = await RVolDB.getFirst5mCandles(ticker, 20);
 
-              // Calculate tier
+              // Calculate tier using Alpaca data
               const tier = evaluate5mORB({
                 first5mCandle,
                 historicalFirst5mCandles: historicalFirst5mCandles
               });
 
+              // Store ORB data (Alpaca IEX data)
               orbData[ticker] = {
                 candle: first5mCandle,
                 historicalCandles: historicalFirst5mCandles,
-                tier
+                tier,
+                source: 'alpaca',
+                timestamp: Date.now()
               };
             }
           } catch (err) {
@@ -616,6 +624,9 @@ export function DataProvider({ children }) {
     marketOpen,
     currentTime,
     marketStatus,
+    isHoliday,
+    isWeekend,
+    isLoading: loading || isCalendarLoading, // Show loading if either data or calendar is loading
     loading,
     error: (isLiveMode && !MOCK_DATA_MODE) ? (error || wsError) : null,
     lastUpdate,
@@ -650,5 +661,3 @@ export function useData() {
   }
   return context;
 }
-
-export default DataContext;

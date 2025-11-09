@@ -73,7 +73,7 @@ export function useMarketAnnouncements(globalMuted = false) {
     }, 1000); // Check every second for precise timing
 
     return () => clearInterval(interval);
-  }, []);
+  }, [globalMuted]);
 }
 
 export default useMarketAnnouncements;

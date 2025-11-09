@@ -2,9 +2,10 @@ import { useMemo, useRef, useEffect, useState } from 'react';
 import { formatPrice, formatTime } from '../utils/formatters';
 import { ORB_THRESHOLDS } from '../config/constants';
 import { announce, toggleTickerMute, isTickerMuted } from '../utils/voiceAlerts';
-import { formatRVol, getRVolColor, getRVolTooltip } from '../utils/rvolCalculations';
-import { evaluate5mORB, evaluate5mORBBearish, checkPriceProximityToMA } from '../services/calculations';
+import { formatRVol, getRVolColor, getRVolTooltip, getTodayMoveProgressWidth } from '../utils/rvolCalculations';
+import { checkPriceProximityToMA } from '../services/calculations';
 import { useData } from '../context/DataContext';
+import RVolProgress from './RVolProgress';
 import './TickerRow.css';
 
 /**
@@ -109,15 +110,26 @@ export function TickerRow({
   // Check if price is close to MA based on ADR% threshold
   const checkMAProximity = (maValue) => {
     if (!price || !maValue || !movingAverages?.adr20) {
-      return { isClose: false, distancePercent: 0, thresholdPercent: 0 };
+      return { isClose: false, isModeratelyClose: false, distancePercent: 0, greenThreshold: 0, amberThreshold: 0 };
     }
 
     return checkPriceProximityToMA(price, maValue, movingAverages.adr20);
   };
 
-  // Handle ticker click (copy to clipboard)
+  // Get CSS class for MA proximity highlighting (green takes priority over amber)
+  const getMAProximityClass = (maValue) => {
+    const proximity = checkMAProximity(maValue);
+    if (proximity.isClose) {
+      return 'ma-proximity-highlight'; // Green box (±5% of ADR%)
+    } else if (proximity.isModeratelyClose) {
+      return 'ma-proximity-amber'; // Amber box (±10% of ADR%)
+    }
+    return ''; // No box
+  };
+
+  // Handle ticker click (open TradingView)
   const handleTickerClick = () => {
-    navigator.clipboard.writeText(ticker);
+    window.open(`https://www.tradingview.com/chart/?symbol=${ticker}`, '_blank');
   };
 
   // Handle price click (open TradingView)
@@ -210,7 +222,7 @@ export function TickerRow({
       hasBorder = bearishBreakout;
       tooltip = `Very Bearish: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER2_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '', // No emoji - circle itself is the traffic light
+        text: '',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BEARISH BREAKOUT!` : tooltip,
@@ -223,7 +235,7 @@ export function TickerRow({
       hasBorder = bearishBreakout;
       tooltip = `Bearish: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '', // No emoji - circle itself is the traffic light
+        text: '',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BEARISH BREAKOUT!` : tooltip,
@@ -236,7 +248,7 @@ export function TickerRow({
       hasBorder = bullishBreakout;
       tooltip = `Very Strong: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER2_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '', // No emoji - circle itself is the traffic light
+        text: '',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BULLISH BREAKOUT!` : tooltip,
@@ -249,7 +261,7 @@ export function TickerRow({
       hasBorder = bullishBreakout;
       tooltip = `Strong: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '', // No emoji - circle itself is the traffic light
+        text: '',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BULLISH BREAKOUT!` : tooltip,
@@ -265,7 +277,7 @@ export function TickerRow({
       if (volumeMultiplier < ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER) failReasons.push(`RVOL ${volumeMultiplier.toFixed(2)}x < ${ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER}x`);
 
       return {
-        text: '', // No display when criteria not met
+        text: '',
         className: '',
         hasBorder: false,
         tooltip: `Failed: ${failReasons.join(', ')}`,
@@ -335,14 +347,14 @@ export function TickerRow({
     }
   }, [orb5mDisplay.tier1Met, orb5mDisplay.tier2Met, orb5mDisplay.hasBorder, orb5mDisplay.className, ticker]);
 
-  // Get Today's % of ADR display (progress bar showing how much of 20D ADR has been covered today)
+  // Get Today's Move ratio (progress bar showing today's range as multiple of 20D ADR)
   const getTodayADRDisplay = (adr20Value) => {
     // Need: today's high, low, current price, and 20D ADR%
     const high = priceData?.high;
     const low = priceData?.low;
 
     if (!high || !low || !price || !adr20Value) {
-      return { percentage: 0, displayText: '—', isOverADR: false };
+      return { ratio: 0, displayText: '—', isOverADR: false };
     }
 
     // Calculate today's range (high - low)
@@ -351,16 +363,29 @@ export function TickerRow({
     // Calculate 20D ADR in dollars
     const adr20Dollars = price * (adr20Value / 100);
 
-    // Calculate percentage of ADR covered today
-    const percentageOfADR = (todayRange / adr20Dollars) * 100;
+    // Calculate today's move as ratio of ADR (1.0 = 100% of ADR)
+    const todayMoveRatio = todayRange / adr20Dollars;
 
-    // Cap at 100% for display
-    const displayPercentage = Math.min(percentageOfADR, 100);
+    // Get color based on ratio
+    const getColorClass = (ratio) => {
+      if (ratio < 0.5) {
+        return 'adr-very-low'; // Red - less than half ADR
+      } else if (ratio < 0.8) {
+        return 'adr-low'; // Amber - less than 80% of ADR
+      } else if (ratio < 1.2) {
+        return 'adr-normal'; // White - around normal ADR
+      } else if (ratio < 1.5) {
+        return 'adr-high'; // Light green - 120-150% of ADR
+      } else {
+        return 'adr-very-high'; // Dark green - 150%+ of ADR
+      }
+    };
 
     return {
-      percentage: displayPercentage,
-      displayText: `${percentageOfADR.toFixed(0)}%`,
-      isOverADR: percentageOfADR >= 100
+      ratio: todayMoveRatio,
+      displayText: `${todayMoveRatio.toFixed(1)}x`,
+      isOverADR: todayMoveRatio >= 1.0,
+      colorClass: getColorClass(todayMoveRatio)
     };
   };
 
@@ -424,7 +449,9 @@ export function TickerRow({
     const proximity = checkMAProximity(maValue);
     let proximityInfo = '';
     if (proximity.isClose) {
-      proximityInfo = `\n⚡ CLOSE TO MA (within ${proximity.thresholdPercent.toFixed(2)}% threshold)`;
+      proximityInfo = `\n🟢 CLOSE TO MA (within ±${proximity.greenThreshold.toFixed(2)}% - Green box)`;
+    } else if (proximity.isModeratelyClose) {
+      proximityInfo = `\n🟠 MODERATELY CLOSE TO MA (within ±${proximity.amberThreshold.toFixed(2)}% - Amber box)`;
     }
 
     return `Price: ${formatPrice(price)}\n${maName}: ${formatPrice(maValue)}\nDistance: ${sign}${formatPrice(Math.abs(distance))} (${sign}${percentDistance.toFixed(2)}%)\nPosition: ${position}${proximityInfo}`;
@@ -450,7 +477,7 @@ export function TickerRow({
             <span
               className="ticker-symbol clickable"
               onClick={handleTickerClick}
-              title="Click to copy"
+              title="Click to open in TradingView"
             >
               {ticker}
             </span>
@@ -503,21 +530,22 @@ export function TickerRow({
       {/* Change % */}
       <td className="change-percent-cell">
         <span
-          className={`change-percent mono ${getChangePercentDisplay().className}`}
-          title={getChangePercentTooltip()}
+          className={`change-percent mono clickable ${getChangePercentDisplay().className}`}
+          onClick={handlePriceClick}
+          title={`${getChangePercentTooltip()}\n\nClick to open in TradingView`}
         >
           {getChangePercentDisplay().value}
         </span>
       </td>
 
       {/* RVol */}
-      <td className="rvol-cell">
-        <span
-          className={`rvol-value mono ${rvolDisplay.className}`}
-          title={rvolDisplay.tooltip}
-        >
-          {rvolDisplay.value}
-        </span>
+      <td className="rvol-progress-cell group-separator-major">
+        <RVolProgress
+          rvol={rvolData?.rvol}
+          tooltip={`${rvolDisplay.tooltip}\n\nClick to open in TradingView`}
+          onClick={handlePriceClick}
+          clickable={true}
+        />
       </td>
 
       {/* 20D ADR% */}
@@ -530,42 +558,48 @@ export function TickerRow({
         </span>
       </td>
 
-      {/* Today's % of ADR */}
+      {/* Today's Move (ratio of ADR) */}
       <td className="adr-progress-cell">
         {todayADRDisplay.displayText !== '—' ? (
           <div
-            className="adr-progress-container"
-            title={getTodayMoveTooltip(movingAverages?.adr20)}
+            className="adr-progress-container clickable"
+            onClick={handlePriceClick}
+            title={`${getTodayMoveTooltip(movingAverages?.adr20)}\n\nClick to open in TradingView`}
           >
+            <div className="adr-progress-track" />
             <div
-              className={`adr-progress-bar ${todayADRDisplay.isOverADR ? 'over-adr' : ''}`}
-              style={{ width: `${todayADRDisplay.percentage}%` }}
+              className={`adr-progress-bar ${todayADRDisplay.colorClass}`}
+              style={{ width: `${getTodayMoveProgressWidth(todayADRDisplay.ratio)}%` }}
             />
+            <div className="adr-progress-center-line" />
             <span className="adr-progress-text mono">{todayADRDisplay.displayText}</span>
           </div>
         ) : (
-          <span
-            className="adr-progress-text mono"
-            title="Today's range data unavailable"
-          >—</span>
+          <div className="adr-progress-container">
+            <div className="adr-progress-track" />
+            <div className="adr-progress-center-line" />
+            <span className="adr-progress-text mono">—</span>
+          </div>
         )}
       </td>
 
       {/* 5m ORB */}
       <td className={`orb-cell group-separator-major ${orb5mDisplay.className} ${orb5mDisplay.hasBorder ? 'orb-breakout-border' : ''}`}>
         <span
-          className="orb-indicator"
-          title={orb5mDisplay.tooltip}
+          className="orb-indicator clickable"
+          onClick={handlePriceClick}
+          title={`${orb5mDisplay.tooltip}\n\nClick to open in TradingView`}
         >
           {orb5mDisplay.text}
         </span>
       </td>
 
       {/* 10D EMA */}
-      <td className={`ma-cell group-separator-major ${checkMAProximity(movingAverages?.ema10).isClose ? 'ma-proximity-highlight' : ''}`}>
+      <td className={`ma-cell group-separator-major ${getMAProximityClass(movingAverages?.ema10)}`}>
         <div
-          className="ma-dual-display"
-          title={getMATooltip('10D EMA', movingAverages?.ema10)}
+          className="ma-dual-display clickable"
+          onClick={handlePriceClick}
+          title={`${getMATooltip('10D EMA', movingAverages?.ema10)}\n\nClick to open in TradingView`}
         >
           <div className="ma-value mono">{ema10Display.value}</div>
           <div className={`ma-percentage mono ${ema10Display.className}`}>
@@ -575,10 +609,11 @@ export function TickerRow({
       </td>
 
       {/* 21D EMA */}
-      <td className={`ma-cell ${checkMAProximity(movingAverages?.ema21).isClose ? 'ma-proximity-highlight' : ''}`}>
+      <td className={`ma-cell ${getMAProximityClass(movingAverages?.ema21)}`}>
         <div
-          className="ma-dual-display"
-          title={getMATooltip('21D EMA', movingAverages?.ema21)}
+          className="ma-dual-display clickable"
+          onClick={handlePriceClick}
+          title={`${getMATooltip('21D EMA', movingAverages?.ema21)}\n\nClick to open in TradingView`}
         >
           <div className="ma-value mono">{ema21Display.value}</div>
           <div className={`ma-percentage mono ${ema21Display.className}`}>
@@ -588,10 +623,11 @@ export function TickerRow({
       </td>
 
       {/* 50D SMA */}
-      <td className={`ma-cell ${checkMAProximity(movingAverages?.sma50).isClose ? 'ma-proximity-highlight' : ''}`}>
+      <td className={`ma-cell ${getMAProximityClass(movingAverages?.sma50)}`}>
         <div
-          className="ma-dual-display"
-          title={getMATooltip('50D SMA', movingAverages?.sma50)}
+          className="ma-dual-display clickable"
+          onClick={handlePriceClick}
+          title={`${getMATooltip('50D SMA', movingAverages?.sma50)}\n\nClick to open in TradingView`}
         >
           <div className="ma-value mono">{sma50Display.value}</div>
           <div className={`ma-percentage mono ${sma50Display.className}`}>
@@ -601,10 +637,11 @@ export function TickerRow({
       </td>
 
       {/* 65D SMA */}
-      <td className={`ma-cell ${checkMAProximity(movingAverages?.sma65).isClose ? 'ma-proximity-highlight' : ''}`}>
+      <td className={`ma-cell ${getMAProximityClass(movingAverages?.sma65)}`}>
         <div
-          className="ma-dual-display"
-          title={getMATooltip('65D SMA', movingAverages?.sma65)}
+          className="ma-dual-display clickable"
+          onClick={handlePriceClick}
+          title={`${getMATooltip('65D SMA', movingAverages?.sma65)}\n\nClick to open in TradingView`}
         >
           <div className="ma-value mono">{sma65Display.value}</div>
           <div className={`ma-percentage mono ${sma65Display.className}`}>
@@ -614,10 +651,11 @@ export function TickerRow({
       </td>
 
       {/* 100D SMA */}
-      <td className={`ma-cell ${checkMAProximity(movingAverages?.sma100).isClose ? 'ma-proximity-highlight' : ''}`}>
+      <td className={`ma-cell ${getMAProximityClass(movingAverages?.sma100)}`}>
         <div
-          className="ma-dual-display"
-          title={getMATooltip('100D SMA', movingAverages?.sma100)}
+          className="ma-dual-display clickable"
+          onClick={handlePriceClick}
+          title={`${getMATooltip('100D SMA', movingAverages?.sma100)}\n\nClick to open in TradingView`}
         >
           <div className="ma-value mono">{sma100Display.value}</div>
           <div className={`ma-percentage mono ${sma100Display.className}`}>

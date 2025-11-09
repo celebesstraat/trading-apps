@@ -109,7 +109,7 @@ export class PerformanceMonitor {
       });
       longTaskObserver.observe({ entryTypes: ['longtask'] });
       this.observers.push(longTaskObserver);
-    } catch (e) {
+    } catch {
       console.warn('Long task observer not supported');
     }
 
@@ -126,7 +126,7 @@ export class PerformanceMonitor {
       });
       clsObserver.observe({ entryTypes: ['layout-shift'] });
       this.observers.push(clsObserver);
-    } catch (e) {
+    } catch {
       console.warn('CLS observer not supported');
     }
   }
@@ -194,13 +194,12 @@ export class PerformanceMonitor {
     const metrics = this.getMetrics();
     const grade = this.getGrade();
 
-    console.group('Performance Metrics');
+    console.log('Performance Metrics');
     console.log('Grade:', grade + '/100');
     console.log('Navigation:', metrics.navigation);
     console.log('Web Vitals:', metrics.vitals);
     console.log('Resources:', metrics.resources.length, 'loaded');
     console.log('Large resources:', metrics.resources.filter(r => r.size > 500000).length);
-    console.groupEnd();
 
     // Store in sessionStorage for debugging
     try {

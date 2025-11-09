@@ -168,14 +168,14 @@ export function WatchlistTable({
               Change %{getSortIndicator('changePercent')}
             </th>
             <th
-              className="sortable"
+              className="sortable group-separator-major"
               onClick={() => handleSort('rvol')}
               title="Relative Volume: Current volume vs. 20-day average at same time"
             >
               RVol{getSortIndicator('rvol')}
             </th>
             <th
-              className="sortable"
+              className="sortable group-separator-major"
               onClick={() => handleSort('adr')}
               title="20-Day Average Daily Range as % of price"
             >

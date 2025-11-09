@@ -21,6 +21,9 @@ function AppContent() {
     marketOpen,
     currentTime,
     marketStatus,
+    isHoliday,
+    isWeekend,
+    isLoading,
     loading,
     error,
     lastUpdate,
@@ -37,6 +40,9 @@ function AppContent() {
           marketOpen={marketOpen}
           marketStatus={marketStatus}
           apiConfigured={apiConfigured}
+          isHoliday={isHoliday}
+          isWeekend={isWeekend}
+          isLoading={isLoading}
         />
         <div className="error-container">
           <div className="error-message">
@@ -79,6 +85,9 @@ VITE_ALPACA_DATA_FEED=iex
           marketOpen={marketOpen}
           marketStatus={marketStatus}
           apiConfigured={apiConfigured}
+          isHoliday={isHoliday}
+          isWeekend={isWeekend}
+          isLoading={isLoading}
         />
         <div className="loading-container">
           <div className="loading-spinner"></div>
