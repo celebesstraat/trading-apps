@@ -53,8 +53,9 @@ A React 18 + Vite real-time trading strategy monitor with the following key arch
 
 **Data Flow:**
 - `DataContext.jsx` provides centralized state management for all market data
-- WebSocket (`useFinnhubWebSocket.js`) provides real-time price updates
-- REST API (`finnhubAPI.js`) loads historical data on startup
+- Uses shared `@trading-apps/market-data` package with Alpaca Markets provider
+- WebSocket provides real-time price updates (hybrid mode: WebSocket + REST fallback)
+- REST API loads historical data on startup
 - Strategy calculations (`orbStrategy.js`, `inmereloStrategy.js`) process data into scoring
 
 **Component Structure:**
@@ -81,7 +82,10 @@ A React 18 + Vite real-time trading strategy monitor with the following key arch
 ### Environment Variables
 Required in `apps/strategywatch/.env`:
 ```
-VITE_FINNHUB_API_KEY=your_finnhub_api_key
+VITE_ALPACA_API_KEY_ID=your_alpaca_api_key_id
+VITE_ALPACA_SECRET_KEY=your_alpaca_secret_key
+VITE_ALPACA_DATA_FEED=iex
+VITE_ALPACA_SANDBOX=true
 ```
 
 ### Key Configuration Files
@@ -91,10 +95,12 @@ VITE_FINNHUB_API_KEY=your_finnhub_api_key
 
 ## Data Sources
 
-**Finnhub API (Free Tier):**
-- WebSocket: Real-time price updates (unlimited connections)
-- REST: Historical data (60 calls/minute rate limit)
-- Usage pattern: ~30 calls on startup, ~1 call/5min during trading hours
+**Alpaca Markets API:**
+- WebSocket: Real-time price updates (excellent reliability)
+- REST: Historical data (200 calls/minute rate limit on free tier)
+- Data feeds: IEX (free) or SIP (paid)
+- Usage pattern: Hybrid mode with WebSocket + REST fallback
+- Better rate limits and WebSocket support compared to Finnhub
 
 ## Development Notes
 
@@ -118,24 +124,31 @@ VITE_FINNHUB_API_KEY=your_finnhub_api_key
 **API Key Problems:**
 - Must start with `VITE_` prefix for Vite to expose it to client
 - Restart dev server after changing `.env` file
-- Verify key at finnhub.io/dashboard
+- Verify Alpaca API credentials at alpaca.markets/dashboard
+- Need both API Key ID and Secret Key for authentication
 
 **WebSocket Connection:**
-- Free tier limited to 1 WebSocket connection
+- Alpaca provides excellent WebSocket reliability
 - Check browser console for connection errors
 - Ensure stable internet connection
+- Hybrid mode falls back to REST if WebSocket fails
 
 **Data Loading:**
 - Initial load takes 10-30 seconds (historical data for all tickers)
 - Scores show "—" during initial data fetch
-- Some tickers may not be available on free tier
+- Alpaca has broader market coverage than Finnhub
+- IEX data feed covers most major US stocks and ETFs
 
 ## Deployment
 
 **Static Site Ready:**
 - Builds to `dist/` folder
 - Compatible with Vercel, Netlify, or any static hosting
-- Set environment variable `VITE_FINNHUB_API_KEY` in hosting platform
+- Set environment variables in hosting platform:
+  - `VITE_ALPACA_API_KEY_ID`
+  - `VITE_ALPACA_SECRET_KEY`
+  - `VITE_ALPACA_DATA_FEED`
+  - `VITE_ALPACA_SANDBOX`
 
 **Build Process:**
 ```bash
