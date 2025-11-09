@@ -38,7 +38,7 @@
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', 'Monaco', monospace;
 
   --font-size-header: 24px;
-  --font-size-ticker: 16px;
+  --font-size-ticker: 18px;
   --font-size-price: 14px;
   --font-size-score: 14px;
   --font-size-small: 12px;
@@ -54,7 +54,7 @@
   --sidebar-width: 0px; /* For future use */
 
   /* Cell Widths */
-  --cell-ticker: 80px;
+  --cell-ticker: 90px;
   --cell-time: 90px;
   --cell-price: 80px;
   --cell-change-percent: 70px;
