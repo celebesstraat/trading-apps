@@ -5,6 +5,8 @@ import { toggleMute, isMuted, isSupported } from '../utils/voiceAlerts';
 import { VoiceSettings } from './VoiceSettings';
 import { MOCK_DATA_MODE } from '../config/constants';
 import { useData } from '../context/DataContext';
+import NewsAlertBanner from './NewsAlertBanner';
+import { ModeToggle } from './ModeToggle';
 
 /**
  * Header Component
@@ -18,13 +20,38 @@ import { useData } from '../context/DataContext';
  * @param {boolean} props.apiConfigured Whether API keys are configured
  */
 export function Header({ connected, currentTime, marketOpen, marketStatus, apiConfigured }) {
-  const { globalMuted, setGlobalMuted } = useData();
+  const {
+    globalMuted,
+    setGlobalMuted,
+    newsItems,
+    newsConnected,
+    dismissNewsItem,
+    markNewsAsRead,
+    getUnreadNewsCount,
+    isLiveMode,
+    toggleLiveMode
+  } = useData();
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showNewsAlert, setShowNewsAlert] = useState(false);
+  const [tickerFilter, setTickerFilter] = useState(null); // For filtering news by specific ticker
 
   useEffect(() => {
     const supported = isSupported();
     setVoiceSupported(supported);
+
+    // Listen for custom event from ticker news icons
+    const handleOpenNewsAlert = (event) => {
+      const ticker = event.detail?.ticker;
+      setTickerFilter(ticker); // Set the ticker filter
+      setShowNewsAlert(true);
+    };
+
+    window.addEventListener('openNewsAlert', handleOpenNewsAlert);
+
+    return () => {
+      window.removeEventListener('openNewsAlert', handleOpenNewsAlert);
+    };
   }, []);
 
   const handleToggleMute = () => {
@@ -39,6 +66,21 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
   const handleCloseVoiceSettings = () => {
     setShowVoiceSettings(false);
   };
+
+  const handleNewsIconClick = () => {
+    setTickerFilter(null); // Clear ticker filter when clicking universal news icon
+    setShowNewsAlert(!showNewsAlert);
+  };
+
+  const handleDismissNews = (newsId) => {
+    dismissNewsItem(newsId);
+  };
+
+  const handleMarkNewsRead = (newsId) => {
+    markNewsAsRead(newsId);
+  };
+
+  const unreadCount = getUnreadNewsCount();
 
   return (
     <>
@@ -78,6 +120,26 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
       </div>
 
       <div className="header-right">
+        <div className="mode-control">
+          {/* Live/Test mode toggle */}
+          <ModeToggle
+            isLiveMode={isLiveMode}
+            onToggle={toggleLiveMode}
+          />
+        </div>
+        <div className="news-control">
+          {/* News alert button */}
+          <button
+            className={`news-alert-btn ${unreadCount > 0 ? 'has-news' : ''}`}
+            onClick={handleNewsIconClick}
+            title={`${unreadCount} unread news item${unreadCount !== 1 ? 's' : ''}`}
+          >
+            📰
+            {unreadCount > 0 && (
+              <span className="news-badge">{unreadCount}</span>
+            )}
+          </button>
+        </div>
         <div className="voice-control">
           {/* Voice alert controls */}
           <button
@@ -107,14 +169,25 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
             API Keys
           </span>
         </div>
-        <div className="mode-status" title={MOCK_DATA_MODE ? 'Using simulated data for testing' : 'Using real market data'}>
-          <span className={`status-dot ${MOCK_DATA_MODE ? 'warning' : 'connected'}`}></span>
+        <div className="mode-status" title={isLiveMode ? 'Using real market data' : 'Using simulated data for testing'}>
+          <span className={`status-dot ${isLiveMode ? 'connected' : 'warning'}`}></span>
           <span className="status-text">
-            {MOCK_DATA_MODE ? 'TEST' : 'LIVE'}
+            {isLiveMode ? 'LIVE' : 'TEST'}
           </span>
         </div>
       </div>
     </header>
+
+      {/* News Alert Banner */}
+      {showNewsAlert && (
+        <NewsAlertBanner
+          newsItems={newsItems}
+          onDismiss={handleDismissNews}
+          onMarkRead={handleMarkNewsRead}
+          tickerFilter={tickerFilter}
+          onClearFilter={() => setTickerFilter(null)}
+        />
+      )}
 
       {/* Voice Settings Modal */}
       <VoiceSettings isOpen={showVoiceSettings} onClose={handleCloseVoiceSettings} />

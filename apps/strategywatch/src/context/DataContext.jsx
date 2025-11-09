@@ -11,6 +11,7 @@ import { generateMockData, createDynamicMockData } from '../services/mockData';
 import { calculateRVol, isMarketHours } from '../utils/rvolCalculations';
 import * as RVolDB from '../services/rvolDatabase';
 import { isMuted } from '../utils/voiceAlerts';
+import { createNewsService } from '../services/newsService';
 
 const DataContext = createContext(null);
 
@@ -21,9 +22,6 @@ const DataContext = createContext(null);
 export function DataProvider({ children }) {
   // Market hours tracking
   const { marketOpen, currentTime, marketStatus } = useMarketHours();
-
-  // Market open/close voice announcements
-  useMarketAnnouncements();
 
   // WebSocket connection for real-time prices (only when not in mock mode)
   const { prices: wsPrices, connected, error: wsError } = useRealtimePrice(
@@ -52,6 +50,20 @@ export function DataProvider({ children }) {
   // Global mute state (synced with voiceAlerts)
   const [globalMuted, setGlobalMuted] = useState(() => isMuted());
 
+  // Market open/close voice announcements (now that globalMuted is initialized)
+  useMarketAnnouncements(globalMuted);
+
+  // Live/Test mode state
+  const [isLiveMode, setIsLiveMode] = useState(() => {
+    // Default to true (live mode) unless explicitly set to test mode
+    return !MOCK_DATA_MODE;
+  });
+
+  // News state
+  const [newsItems, setNewsItems] = useState([]);
+  const [newsService, setNewsService] = useState(null);
+  const [newsConnected, setNewsConnected] = useState(false);
+
   // Fetch historical data on mount (or use mock data)
   useEffect(() => {
     const fetchHistoricalData = async () => {
@@ -59,9 +71,10 @@ export function DataProvider({ children }) {
         setLoading(true);
         setError(null);
 
-        // Use mock data if enabled
-        if (MOCK_DATA_MODE) {
-          console.log('🎭 Using DYNAMIC MOCK DATA for visual testing');
+        // Use mock data if in test mode or mock mode enabled
+        if (!isLiveMode || MOCK_DATA_MODE) {
+          const mode = MOCK_DATA_MODE ? 'MOCK DATA MODE' : 'TEST MODE';
+          console.log(`🎭 Using DYNAMIC MOCK DATA for ${mode}`);
           const dynamicData = createDynamicMockData(WATCHLIST);
           setDynamicMockData(dynamicData);
           setMergedPrices(dynamicData.initialData.prices);
@@ -87,6 +100,14 @@ export function DataProvider({ children }) {
           return;
         }
 
+        // Clear mock data when switching to LIVE mode
+        console.log('🔄 Clearing mock data and fetching real data for LIVE mode');
+        setDynamicMockData(null);
+        // Clear mock data from state to prevent interference
+        setMergedPrices({});
+        setRVolData({});
+        setOrb5mData({});
+
         // Fetch daily candles for all tickers
         const candlesData = await fetchDailyCandlesBatch(WATCHLIST);
 
@@ -111,17 +132,168 @@ export function DataProvider({ children }) {
       }
     };
 
-    if (MOCK_DATA_MODE || isAPIConfigured()) {
+    if (MOCK_DATA_MODE || (!isLiveMode) || isAPIConfigured()) {
       fetchHistoricalData();
     } else {
       setError('API keys not configured. Please set VITE_ALPACA_API_KEY_ID and VITE_ALPACA_SECRET_KEY in .env file');
       setLoading(false);
     }
-  }, []);
+  }, [isLiveMode]);
 
-  // Dynamic mock data updates (only in mock mode)
+  // Initialize news service and WebSocket connection
   useEffect(() => {
-    if (!MOCK_DATA_MODE || !dynamicMockData) return;
+    // Clear previous news when switching modes
+    setNewsItems([]);
+
+    const newsServiceInstance = isLiveMode
+      ? createRealNewsService()
+      : createMockNewsService();
+
+    setNewsService(newsServiceInstance);
+
+    return () => {
+      if (newsServiceInstance) {
+        newsServiceInstance.disconnect();
+      }
+      setNewsService(null);
+      setNewsConnected(false);
+    };
+  }, [isLiveMode]);
+
+  // Helper function to create real news service
+  const createRealNewsService = () => {
+    if (!isAPIConfigured()) {
+      console.warn('API keys not configured. Using mock news service.');
+      return createMockNewsService();
+    }
+
+    const apiKey = import.meta.env.VITE_ALPACA_API_KEY_ID;
+    const secretKey = import.meta.env.VITE_ALPACA_SECRET_KEY;
+
+    if (!apiKey || !secretKey) {
+      console.warn('Alpaca API keys not found. Using mock news service.');
+      return createMockNewsService();
+    }
+
+    console.log('📰 Creating real Alpaca news service');
+    setNewsConnected(false);
+
+    return createNewsService(
+      apiKey,
+      secretKey,
+      (newsItem) => {
+        const newsService = createNewsService(apiKey, secretKey);
+        const filteredNews = newsService.filterNewsForWatchlist(newsItem, WATCHLIST);
+
+        if (filteredNews) {
+          setNewsItems(prev => {
+            const updated = [filteredNews, ...prev.slice(0, 49)];
+            return updated;
+          });
+        }
+      }
+    );
+  };
+
+  // Helper function to create mock news service
+  const createMockNewsService = () => {
+    console.log('🧪 Creating mock news service');
+    setNewsConnected(true);
+
+    // Simulate receiving mock news after 3 seconds
+    const mockNewsTimeout = setTimeout(() => {
+      const mockNews = [
+        {
+          id: 'mock-1',
+          headline: 'AAPL Announces New iPhone Features',
+          summary: 'Apple reveals groundbreaking new features for upcoming iPhone lineup, expected to boost sales significantly.',
+          author: 'Tech Reporter',
+          source: 'Reuters',
+          url: 'https://example.com/news/aapl-iphone',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          symbols: ['AAPL']
+        },
+        {
+          id: 'mock-2',
+          headline: 'TSLA Expands Gigafactory Operations',
+          summary: 'Tesla announces expansion plans for Texas gigafactory, increasing production capacity by 50%.',
+          author: 'Auto Analyst',
+          source: 'Bloomberg',
+          url: 'https://example.com/news/tsla-gigafactory',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          symbols: ['TSLA']
+        },
+        {
+          id: 'mock-3',
+          headline: 'NVDA Reports Strong Q3 Earnings',
+          summary: 'NVIDIA exceeds expectations with record quarterly revenue driven by AI chip demand.',
+          author: 'Market Watch',
+          source: 'CNBC',
+          url: 'https://example.com/news/nvda-earnings',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          symbols: ['NVDA']
+        }
+      ];
+
+      mockNews.forEach((newsItem, index) => {
+        setTimeout(() => {
+          console.log('🧪 Simulating news item:', newsItem.headline);
+
+          const mentionedSymbols = newsItem.symbols.filter(symbol =>
+            WATCHLIST.includes(symbol)
+          );
+
+          if (mentionedSymbols.length > 0) {
+            const filteredNews = {
+              ...newsItem,
+              relevanceScore: 1,
+              mentionedSymbols,
+              isRelevant: true
+            };
+
+            setNewsItems(prev => {
+              const updated = [filteredNews, ...prev.slice(0, 49)];
+              return updated;
+            });
+          }
+        }, index * 2000); // Send each news item 2 seconds apart
+      });
+    }, 3000); // Start after 3 seconds
+
+    return {
+      disconnect: () => {
+        clearTimeout(mockNewsTimeout);
+        console.log('🧪 Mock news service disconnected');
+      },
+      getConnectionStatus: () => ({ isConnected: true, reconnectAttempts: 0 }),
+      filterNewsForWatchlist: (newsItem, watchlistSymbols) => {
+        const mentionedSymbols = newsItem.symbols.filter(symbol =>
+          watchlistSymbols.includes(symbol)
+        );
+
+        if (mentionedSymbols.length === 0) {
+          return null;
+        }
+
+        return {
+          ...newsItem,
+          relevanceScore: 1,
+          mentionedSymbols,
+          isRelevant: true
+        };
+      }
+    };
+  };
+
+  // Dynamic mock data updates (only in test mode or mock mode)
+  useEffect(() => {
+    // Don't run updates in LIVE mode unless MOCK_DATA_MODE is globally enabled
+    if (isLiveMode && !MOCK_DATA_MODE) return;
+    // Don't run if no mock data exists
+    if (!dynamicMockData) return;
 
     const interval = setInterval(() => {
       // Update prices
@@ -166,11 +338,11 @@ export function DataProvider({ children }) {
     }, 2000); // Update every 2 seconds for realistic movement
 
     return () => clearInterval(interval);
-  }, [MOCK_DATA_MODE, dynamicMockData]);
+  }, [MOCK_DATA_MODE, isLiveMode, dynamicMockData]);
 
-  // Merge WebSocket prices into state (skip in mock mode)
+  // Merge WebSocket prices into state (skip in test mode or mock mode)
   useEffect(() => {
-    if (MOCK_DATA_MODE) return; // Don't override mock data
+    if (!isLiveMode || MOCK_DATA_MODE) return; // Don't override mock data
 
     if (wsPrices && Object.keys(wsPrices).length > 0) {
       setMergedPrices(prev => ({
@@ -178,11 +350,11 @@ export function DataProvider({ children }) {
         ...wsPrices
       }));
     }
-  }, [wsPrices]);
+  }, [wsPrices, isLiveMode]);
 
   // Supplement WebSocket with REST API polling (always fetch, regardless of market hours)
   useEffect(() => {
-    if (MOCK_DATA_MODE) return; // Skip in mock mode
+    if (!isLiveMode || MOCK_DATA_MODE) return; // Skip in test mode or mock mode
     if (!isAPIConfigured()) {
       return;
     }
@@ -248,7 +420,7 @@ export function DataProvider({ children }) {
       isActive = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [marketOpen]);
+  }, [marketOpen, isLiveMode]);
 
   // Update lastUpdate when prices change
   useEffect(() => {
@@ -259,7 +431,7 @@ export function DataProvider({ children }) {
 
   // Unified market data fetching: Fetch 5m intraday data and calculate both RVol and ORB
   useEffect(() => {
-    if (MOCK_DATA_MODE) return; // Skip in mock mode
+    if (!isLiveMode || MOCK_DATA_MODE) return; // Skip in test mode or mock mode
     if (!isAPIConfigured()) {
       return;
     }
@@ -390,7 +562,42 @@ export function DataProvider({ children }) {
       isActive = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [marketOpen]);
+  }, [marketOpen, isLiveMode]);
+
+  // News functions
+  const dismissNewsItem = (newsId) => {
+    setNewsItems(prev => prev.map(item =>
+      item.id === newsId ? { ...item, isRead: true } : item
+    ));
+  };
+
+  const markNewsAsRead = (newsId) => {
+    setNewsItems(prev => prev.map(item =>
+      item.id === newsId ? { ...item, isRead: true } : item
+    ));
+  };
+
+  const clearAllNews = () => {
+    setNewsItems(prev => prev.map(item => ({ ...item, isRead: true })));
+  };
+
+  const getUnreadNewsCount = () => {
+    return newsItems.filter(item => item.isRelevant && !item.isRead).length;
+  };
+
+  const getUnreadNewsCountForTicker = (ticker) => {
+    return newsItems.filter(item =>
+      item.isRelevant &&
+      !item.isRead &&
+      item.mentionedSymbols &&
+      item.mentionedSymbols.includes(ticker)
+    ).length;
+  };
+
+  // Toggle live mode function
+  const toggleLiveMode = () => {
+    setIsLiveMode(prev => !prev);
+  };
 
   // Context value
   const value = {
@@ -401,20 +608,33 @@ export function DataProvider({ children }) {
     movingAverages,
     orb5mData,
     rvolData,
+    newsItems,
 
     // Status
-    connected: MOCK_DATA_MODE ? true : connected,
+    connected: isLiveMode && !MOCK_DATA_MODE ? connected : true,
+    newsConnected,
     marketOpen,
     currentTime,
     marketStatus,
     loading,
-    error: MOCK_DATA_MODE ? null : (error || wsError),
+    error: (isLiveMode && !MOCK_DATA_MODE) ? (error || wsError) : null,
     lastUpdate,
     apiConfigured: isAPIConfigured(),
+    isLiveMode,
 
     // Voice control
     globalMuted,
-    setGlobalMuted
+    setGlobalMuted,
+
+    // Mode control
+    toggleLiveMode,
+
+    // News functions
+    dismissNewsItem,
+    markNewsAsRead,
+    clearAllNews,
+    getUnreadNewsCount,
+    getUnreadNewsCountForTicker
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

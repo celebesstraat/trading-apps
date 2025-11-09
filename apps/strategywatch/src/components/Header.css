@@ -189,6 +189,94 @@
   border: 1px solid var(--status-disconnected);
 }
 
+/* Mode Control Styles */
+.mode-control {
+  display: flex;
+  align-items: center;
+  margin-right: var(--spacing-sm);
+}
+
+/* News Control Styles */
+.news-control {
+  display: flex;
+  align-items: center;
+}
+
+.news-alert-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  position: relative;
+  color: var(--text-secondary);
+}
+
+.news-alert-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  transform: scale(1.05);
+}
+
+.news-alert-btn.has-news {
+  color: var(--accent);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.news-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background-color: var(--accent);
+  color: white;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid var(--bg-secondary);
+  animation: badgeAppear 0.3s ease-out;
+}
+
+@keyframes badgeAppear {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.news-alert-btn:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 @keyframes pulse {
   0%,
   100% {

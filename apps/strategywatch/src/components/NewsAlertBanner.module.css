@@ -1,0 +1,223 @@
+.newsBanner {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  width: 400px;
+  max-width: 90vw;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 60vh;
+  overflow: hidden;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.bannerHeader {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  gap: 8px;
+}
+
+.bannerIcon {
+  font-size: 16px;
+}
+
+.bannerTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.newsCount {
+  background: var(--accent-color);
+  color: white;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.clearFilterBtn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+}
+
+.clearFilterBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+
+.newsList {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.newsItem {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.newsItem:hover {
+  background: var(--bg-hover);
+}
+
+.newsItem:last-child {
+  border-bottom: none;
+}
+
+.newsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.newsSource {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex: 1;
+}
+
+.newsTime {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.dismissButton {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.dismissButton:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.newsHeadline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+}
+
+.symbolsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.symbolTag {
+  background: var(--accent-color);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.newsSummary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.bannerFooter {
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.dismissAllButton {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dismissAllButton:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .newsBanner {
+    top: 50px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .newsBanner {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .newsItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .dismissButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .dismissAllButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}

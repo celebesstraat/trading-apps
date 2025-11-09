@@ -12,11 +12,24 @@
   text-align: center;
 }
 
-.ticker-content {
+.ticker-content-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.ticker-symbol-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.ticker-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .ticker-symbol {
@@ -276,9 +289,9 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 14px;
-  padding: 2px 4px;
-  border-radius: 4px;
+  font-size: 12px;
+  padding: 1px 3px;
+  border-radius: 3px;
   transition: all var(--transition-fast);
   display: inline-flex;
   align-items: center;
@@ -320,4 +333,87 @@
 
 .mute-button-inline:disabled {
   cursor: not-allowed;
+}
+
+/* Inline News icon styling */
+.news-icon-inline {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  line-height: 1;
+  position: relative;
+  color: var(--text-secondary);
+}
+
+.news-icon-inline:hover {
+  background-color: var(--bg-hover);
+  opacity: 1;
+  transform: scale(1.1);
+  color: var(--accent-blue);
+}
+
+.news-icon-inline:active {
+  transform: scale(0.95);
+}
+
+.news-badge-inline {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background-color: var(--accent-blue);
+  color: white;
+  font-size: 8px;
+  font-weight: bold;
+  padding: 1px 2px;
+  border-radius: 6px;
+  min-width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  animation: news-pulse 2s ease-in-out infinite;
+}
+
+@keyframes news-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+/* MA Proximity Highlighting - Compact border box around data within cell */
+.ma-proximity-highlight .ma-dual-display {
+  position: relative;
+  border: 1px solid #00ff00;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(0, 255, 0, 0.6), inset 0 0 4px rgba(0, 255, 0, 0.2);
+  animation: pulse-ma-proximity-border 2s ease-in-out infinite alternate;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  display: inline-block;
+  min-width: 60px;
+  text-align: center;
+}
+
+@keyframes pulse-ma-proximity-border {
+  from {
+    box-shadow: 0 0 8px rgba(0, 255, 0, 0.6), inset 0 0 4px rgba(0, 255, 0, 0.2);
+  }
+  to {
+    box-shadow: 0 0 12px rgba(0, 255, 0, 0.8), inset 0 0 6px rgba(0, 255, 0, 0.3);
+  }
 }

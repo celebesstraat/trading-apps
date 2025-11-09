@@ -3,7 +3,7 @@ import { formatPrice, formatTime } from '../utils/formatters';
 import { ORB_THRESHOLDS } from '../config/constants';
 import { announce, toggleTickerMute, isTickerMuted } from '../utils/voiceAlerts';
 import { formatRVol, getRVolColor, getRVolTooltip } from '../utils/rvolCalculations';
-import { evaluate5mORB, evaluate5mORBBearish } from '../services/calculations';
+import { evaluate5mORB, evaluate5mORBBearish, checkPriceProximityToMA } from '../services/calculations';
 import { useData } from '../context/DataContext';
 import './TickerRow.css';
 
@@ -29,8 +29,8 @@ export function TickerRow({
   const timestamp = priceData?.timestamp;
   const previousClose = priceData?.previousClose;
 
-  // Get global mute state from context
-  const { globalMuted } = useData();
+  // Get global mute state and news functions from context
+  const { globalMuted, getUnreadNewsCountForTicker } = useData();
 
   // Track muted state for this ticker
   const [isTickerMutedState, setIsTickerMutedState] = useState(() => isTickerMuted(ticker));
@@ -106,6 +106,15 @@ export function TickerRow({
     };
   };
 
+  // Check if price is close to MA based on ADR% threshold
+  const checkMAProximity = (maValue) => {
+    if (!price || !maValue || !movingAverages?.adr20) {
+      return { isClose: false, distancePercent: 0, thresholdPercent: 0 };
+    }
+
+    return checkPriceProximityToMA(price, maValue, movingAverages.adr20);
+  };
+
   // Handle ticker click (copy to clipboard)
   const handleTickerClick = () => {
     navigator.clipboard.writeText(ticker);
@@ -114,6 +123,16 @@ export function TickerRow({
   // Handle price click (open TradingView)
   const handlePriceClick = () => {
     window.open(`https://www.tradingview.com/chart/?symbol=${ticker}`, '_blank');
+  };
+
+  // Get unread news count for this ticker
+  const unreadNewsCount = getUnreadNewsCountForTicker(ticker);
+
+  // Handle news icon click (open global news alert)
+  const handleNewsIconClick = () => {
+    // This will trigger the global news alert to open
+    // We'll use a custom event to communicate with the Header component
+    window.dispatchEvent(new CustomEvent('openNewsAlert', { detail: { ticker } }));
   };
 
   // Get ADR% display (raw percentage value, always white font)
@@ -400,7 +419,15 @@ export function TickerRow({
     const percentDistance = ((price - maValue) / maValue) * 100;
     const position = price >= maValue ? 'Above' : 'Below';
     const sign = distance >= 0 ? '+' : '';
-    return `Price: ${formatPrice(price)}\n${maName}: ${formatPrice(maValue)}\nDistance: ${sign}${formatPrice(Math.abs(distance))} (${sign}${percentDistance.toFixed(2)}%)\nPosition: ${position}`;
+
+    // Check proximity for enhanced tooltip
+    const proximity = checkMAProximity(maValue);
+    let proximityInfo = '';
+    if (proximity.isClose) {
+      proximityInfo = `\n⚡ CLOSE TO MA (within ${proximity.thresholdPercent.toFixed(2)}% threshold)`;
+    }
+
+    return `Price: ${formatPrice(price)}\n${maName}: ${formatPrice(maValue)}\nDistance: ${sign}${formatPrice(Math.abs(distance))} (${sign}${percentDistance.toFixed(2)}%)\nPosition: ${position}${proximityInfo}`;
   };
 
   // Get displays for all MAs
@@ -416,29 +443,44 @@ export function TickerRow({
 
   return (
     <tr className="ticker-row">
-      {/* Ticker with inline mute button */}
+      {/* Ticker with control icons underneath */}
       <td className="ticker-cell">
-        <div className="ticker-content">
-          <span
-            className="ticker-symbol clickable"
-            onClick={handleTickerClick}
-            title="Click to copy"
-          >
-            {ticker}
-          </span>
-          <button
-            className={`mute-button-inline ${effectivelyMuted ? 'muted' : ''} ${globalMuted ? 'global-muted' : ''}`}
-            onClick={handleMuteToggle}
-            title={
-              globalMuted
-                ? 'Global mute is active'
-                : (isTickerMutedState ? 'Unmute announcements' : 'Mute announcements')
-            }
-            aria-label={isTickerMutedState ? 'Unmute' : 'Mute'}
-            disabled={globalMuted}
-          >
-            {effectivelyMuted ? '🔇' : '🔊'}
-          </button>
+        <div className="ticker-content-vertical">
+          <div className="ticker-symbol-wrapper">
+            <span
+              className="ticker-symbol clickable"
+              onClick={handleTickerClick}
+              title="Click to copy"
+            >
+              {ticker}
+            </span>
+          </div>
+          <div className="ticker-controls">
+            {unreadNewsCount > 0 && (
+              <button
+                className="news-icon-inline"
+                onClick={handleNewsIconClick}
+                title={`${unreadNewsCount} unread news item${unreadNewsCount !== 1 ? 's' : ''} for ${ticker}`}
+                aria-label={`${unreadNewsCount} unread news items`}
+              >
+                📰
+                <span className="news-badge-inline">{unreadNewsCount}</span>
+              </button>
+            )}
+            <button
+              className={`mute-button-inline ${effectivelyMuted ? 'muted' : ''} ${globalMuted ? 'global-muted' : ''}`}
+              onClick={handleMuteToggle}
+              title={
+                globalMuted
+                  ? 'Global mute is active'
+                  : (isTickerMutedState ? 'Unmute announcements' : 'Mute announcements')
+              }
+              aria-label={isTickerMutedState ? 'Unmute' : 'Mute'}
+              disabled={globalMuted}
+            >
+              {effectivelyMuted ? '🔇' : '🔊'}
+            </button>
+          </div>
         </div>
       </td>
 
@@ -520,7 +562,7 @@ export function TickerRow({
       </td>
 
       {/* 10D EMA */}
-      <td className="ma-cell group-separator-major">
+      <td className={`ma-cell group-separator-major ${checkMAProximity(movingAverages?.ema10).isClose ? 'ma-proximity-highlight' : ''}`}>
         <div
           className="ma-dual-display"
           title={getMATooltip('10D EMA', movingAverages?.ema10)}
@@ -533,7 +575,7 @@ export function TickerRow({
       </td>
 
       {/* 21D EMA */}
-      <td className="ma-cell">
+      <td className={`ma-cell ${checkMAProximity(movingAverages?.ema21).isClose ? 'ma-proximity-highlight' : ''}`}>
         <div
           className="ma-dual-display"
           title={getMATooltip('21D EMA', movingAverages?.ema21)}
@@ -546,7 +588,7 @@ export function TickerRow({
       </td>
 
       {/* 50D SMA */}
-      <td className="ma-cell">
+      <td className={`ma-cell ${checkMAProximity(movingAverages?.sma50).isClose ? 'ma-proximity-highlight' : ''}`}>
         <div
           className="ma-dual-display"
           title={getMATooltip('50D SMA', movingAverages?.sma50)}
@@ -559,7 +601,7 @@ export function TickerRow({
       </td>
 
       {/* 65D SMA */}
-      <td className="ma-cell">
+      <td className={`ma-cell ${checkMAProximity(movingAverages?.sma65).isClose ? 'ma-proximity-highlight' : ''}`}>
         <div
           className="ma-dual-display"
           title={getMATooltip('65D SMA', movingAverages?.sma65)}
@@ -572,7 +614,7 @@ export function TickerRow({
       </td>
 
       {/* 100D SMA */}
-      <td className="ma-cell">
+      <td className={`ma-cell ${checkMAProximity(movingAverages?.sma100).isClose ? 'ma-proximity-highlight' : ''}`}>
         <div
           className="ma-dual-display"
           title={getMATooltip('100D SMA', movingAverages?.sma100)}

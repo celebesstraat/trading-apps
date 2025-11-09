@@ -8,7 +8,7 @@ import { MARKET_CONFIG } from '../config/constants';
  * Announces "US Market is now Open" at exactly 09:30:00 EST on weekdays
  * Announces "US Market is now Closed" at exactly 16:00:00 EST on weekdays
  */
-export function useMarketAnnouncements() {
+export function useMarketAnnouncements(globalMuted = false) {
   const hasAnnouncedOpenRef = useRef(false);
   const hasAnnouncedCloseRef = useRef(false);
   const lastCheckedMinuteRef = useRef(null);
@@ -50,9 +50,11 @@ export function useMarketAnnouncements() {
         second === 0 &&
         !hasAnnouncedOpenRef.current
       ) {
-        announce('U S Market is now Open');
+        if (!globalMuted) {
+          announce('U S Market is now Open');
+        }
         hasAnnouncedOpenRef.current = true;
-        console.log('🔔 Market open announcement triggered at', et.toLocaleTimeString('en-US', { timeZone: MARKET_CONFIG.TIMEZONE }));
+        console.log('🔔 Market open announcement triggered at', et.toLocaleTimeString('en-US', { timeZone: MARKET_CONFIG.TIMEZONE }), globalMuted ? '(MUTED)' : '(ANNOUNCED)');
       }
 
       // Check for market close (16:00:00 EST)
@@ -62,9 +64,11 @@ export function useMarketAnnouncements() {
         second === 0 &&
         !hasAnnouncedCloseRef.current
       ) {
-        announce('U S Market is now Closed');
+        if (!globalMuted) {
+          announce('U S Market is now Closed');
+        }
         hasAnnouncedCloseRef.current = true;
-        console.log('🔔 Market close announcement triggered at', et.toLocaleTimeString('en-US', { timeZone: MARKET_CONFIG.TIMEZONE }));
+        console.log('🔔 Market close announcement triggered at', et.toLocaleTimeString('en-US', { timeZone: MARKET_CONFIG.TIMEZONE }), globalMuted ? '(MUTED)' : '(ANNOUNCED)');
       }
     }, 1000); // Check every second for precise timing
 

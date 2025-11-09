@@ -383,6 +383,36 @@ export function get5mORBDetails({
   };
 }
 
+/**
+ * Checks if current price is close to any Moving Average based on ADR% threshold
+ * Highlights MA levels when price is within ±(ADR%/20) of the MA value
+ *
+ * @param {number} currentPrice Current stock price
+ * @param {number} maValue Moving average value to check
+ * @param {number} adrPercent 20-Day ADR percentage
+ * @returns {object} { isClose: boolean, distancePercent: number, thresholdPercent: number }
+ */
+export function checkPriceProximityToMA(currentPrice, maValue, adrPercent) {
+  if (!currentPrice || !maValue || !adrPercent) {
+    return { isClose: false, distancePercent: 0, thresholdPercent: 0 };
+  }
+
+  // Calculate threshold: ±(ADR% / 20)
+  const thresholdPercent = adrPercent / 20;
+
+  // Calculate actual distance percentage
+  const distancePercent = Math.abs(((currentPrice - maValue) / maValue) * 100);
+
+  // Check if price is within threshold
+  const isClose = distancePercent <= thresholdPercent;
+
+  return {
+    isClose,
+    distancePercent,
+    thresholdPercent
+  };
+}
+
 // Store announced ADR milestones to avoid duplicates
 const announcedMilestones = new Set();
 

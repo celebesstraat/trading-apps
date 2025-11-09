@@ -1,0 +1,111 @@
+.modeToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background-color: var(--bg-primary);
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.modeLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+  user-select: none;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.modeLabel:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.modeLabel:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.modeLabel.active {
+  color: var(--text-primary);
+}
+
+.toggleSwitch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+  padding: 0;
+}
+
+.toggleSwitch:hover {
+  transform: scale(1.05);
+}
+
+.toggleSwitch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.toggleSwitch.live {
+  background-color: rgba(0, 230, 118, 0.2);
+  border-color: var(--status-connected);
+}
+
+.toggleSwitch.test {
+  background-color: rgba(255, 152, 0, 0.2);
+  border-color: var(--status-warning);
+}
+
+.toggleSlider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background-color: var(--text-muted);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggleSwitch.live .toggleSlider {
+  left: 22px;
+  background-color: var(--status-connected);
+}
+
+.toggleSwitch.test .toggleSlider {
+  left: 2px;
+  background-color: var(--status-warning);
+}
+
+/* Focus styles */
+.toggleSwitch:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .modeToggle {
+  background-color: var(--bg-secondary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .toggleSwitch.live {
+  background-color: rgba(0, 230, 118, 0.15);
+}
+
+[data-theme="dark"] .toggleSwitch.test {
+  background-color: rgba(255, 152, 0, 0.15);
+}

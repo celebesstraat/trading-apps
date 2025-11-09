@@ -5,7 +5,7 @@ export const DATA_MODE = 'hybrid'; // Alpaca has much better WebSocket support
 
 // === MOCK DATA MODE ===
 // Set to true to use fake data for visual testing (5M ORB, Today's Move, etc.)
-export const MOCK_DATA_MODE = true;
+export const MOCK_DATA_MODE = false;
 
 // Market Data Provider Configuration (Alpaca Markets)
 export const MARKET_DATA_CONFIG = {
