@@ -5,8 +5,6 @@ import WatchlistTable from './components/WatchlistTable';
 import ErrorBoundary from './components/ErrorBoundary';
 import './styles/global.css';
 import './App.css';
-// Import ORB test console for voice announcement testing
-import './utils/orbTestConsole';
 
 /**
  * Main App Content Component
@@ -18,6 +16,7 @@ function AppContent() {
     prices,
     movingAverages,
     orb5mData,
+    rvolData,
     connected,
     marketOpen,
     currentTime,
@@ -116,6 +115,7 @@ VITE_ALPACA_DATA_FEED=iex
           pricesMap={prices}
           movingAveragesMap={movingAverages}
           orb5mDataMap={orb5mData}
+          rvolDataMap={rvolData}
         />
       </main>
 

@@ -4,6 +4,7 @@
 // Most liquid stocks - updates every 1-3 seconds on Finnhub free tier
 export const WATCHLIST = [
   'SPY',    // S&P 500 ETF - Most liquid
+  'VXX',    // VIX ETF - Volatility proxy
   'AAPL',   // Apple
   'TSLA',   // Tesla - High volatility
   'NVDA',   // NVIDIA

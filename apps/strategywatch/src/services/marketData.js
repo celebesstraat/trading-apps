@@ -397,6 +397,126 @@ export function getConnectionState() {
 }
 
 /**
+ * Fetches all 5-minute candles for the last N trading days (for RVol calculation)
+ * Returns candles grouped by date
+ * @param {string} symbol - Stock ticker
+ * @param {number} days - Number of trading days to fetch (default: 20)
+ * @returns {Promise<Array>} Array of { date, candles: [{ timestamp, volume, open, high, low, close }] }
+ */
+export async function fetchHistorical5mCandlesForRVol(symbol, days = 20) {
+  try {
+    // Fetch more calendar days to ensure we get enough trading days
+    const daysToFetch = days * 2; // Account for weekends and holidays
+    const provider = getProvider();
+    const to = Date.now();
+    const from = to - (daysToFetch * 24 * 60 * 60 * 1000);
+
+    const candles = await provider.fetchCandles(symbol, '5', from, to);
+
+    if (!candles || !candles.close || candles.close.length === 0) {
+      return [];
+    }
+
+    // Group candles by trading day (ET timezone)
+    const candlesByDate = new Map();
+
+    for (let i = 0; i < candles.timestamps.length; i++) {
+      const candleTime = new Date(candles.timestamps[i]);
+
+      // Convert to ET timezone
+      const etString = candleTime.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+
+      const [datePart, timePart] = etString.split(', ');
+      const [month, day, year] = datePart.split('/');
+      const dateKey = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      const [hour, minute] = timePart.split(':').map(Number);
+
+      // Only include market hours (9:30 AM - 4:00 PM ET)
+      const isMarketHours =
+        (hour > 9 || (hour === 9 && minute >= 30)) &&
+        (hour < 16);
+
+      if (isMarketHours) {
+        if (!candlesByDate.has(dateKey)) {
+          candlesByDate.set(dateKey, []);
+        }
+
+        candlesByDate.get(dateKey).push({
+          timestamp: candles.timestamps[i],
+          volume: candles.volume[i],
+          open: candles.open[i],
+          high: candles.high[i],
+          low: candles.low[i],
+          close: candles.close[i]
+        });
+      }
+    }
+
+    // Convert map to array and sort by date (most recent first)
+    const result = Array.from(candlesByDate.entries())
+      .map(([date, candlesList]) => ({
+        date,
+        candles: candlesList.sort((a, b) => a.timestamp - b.timestamp) // Sort candles by time
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort dates descending
+
+    // Return only the requested number of trading days
+    return result.slice(0, days);
+  } catch (error) {
+    console.error(`Error fetching historical 5m candles for RVol (${symbol}):`, error);
+    return [];
+  }
+}
+
+/**
+ * Fetches today's 5-minute candles (for RVol calculation)
+ * @param {string} symbol - Stock ticker
+ * @returns {Promise<Array>} Array of { timestamp, volume, open, high, low, close }
+ */
+export async function fetchTodayIntradayCandles(symbol) {
+  try {
+    // Get today's market open timestamp (9:30 AM ET)
+    const marketOpenTime = getTodayMarketOpenTimestamp();
+    const now = Date.now();
+
+    // Fetch from market open to now
+    const provider = getProvider();
+    const candles = await provider.fetchCandles(symbol, '5', marketOpenTime, now);
+
+    if (!candles || !candles.close || candles.close.length === 0) {
+      return [];
+    }
+
+    // Transform to simple array format
+    const result = [];
+    for (let i = 0; i < candles.timestamps.length; i++) {
+      result.push({
+        timestamp: candles.timestamps[i],
+        volume: candles.volume[i],
+        open: candles.open[i],
+        high: candles.high[i],
+        low: candles.low[i],
+        close: candles.close[i]
+      });
+    }
+
+    // Sort by timestamp (should already be sorted, but ensure it)
+    return result.sort((a, b) => a.timestamp - b.timestamp);
+  } catch (error) {
+    console.error(`Error fetching today's intraday candles (${symbol}):`, error);
+    return [];
+  }
+}
+
+/**
  * Disconnect provider
  * @returns {Promise<void>}
  */

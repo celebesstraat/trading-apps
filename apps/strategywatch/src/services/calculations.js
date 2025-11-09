@@ -1,5 +1,6 @@
 import { HISTORICAL_CONFIG } from '../config/constants';
 import { announce } from '../utils/voiceAlerts';
+import { calculateSingleCandleRVol } from '../utils/rvolCalculations';
 
 /**
  * Calculates Exponential Moving Average (EMA)
@@ -280,18 +281,24 @@ export function evaluate5mORB({
 
   // === RVOL CALCULATION (TRUE opening-bar RVOL) ===
 
-  // Calculate average volume from historical first 5m candles
-  const validHistoricalVolumes = historicalFirst5mCandles
+  // Extract historical volumes
+  const historicalVolumes = historicalFirst5mCandles
     .map(candle => candle?.volume)
     .filter(vol => vol !== null && vol !== undefined && vol > 0);
 
   // Not enough samples
-  if (validHistoricalVolumes.length < minSamples) {
+  if (historicalVolumes.length < minSamples) {
     return 0; // Can't calculate RVOL without enough history
   }
 
-  const avgOpenVol = validHistoricalVolumes.reduce((sum, vol) => sum + vol, 0) / validHistoricalVolumes.length;
-  const rvol = volume / avgOpenVol;
+  // Use shared RVol calculation utility
+  const rvolResult = calculateSingleCandleRVol(volume, historicalVolumes);
+
+  if (rvolResult.error || rvolResult.rvol === null) {
+    return 0; // Can't calculate RVOL
+  }
+
+  const rvol = rvolResult.rvol;
 
   // === TIER EVALUATION ===
 
@@ -347,14 +354,14 @@ export function get5mORBDetails({
   const body = Math.abs(close - open);
   const bodyRatio = body / range;
 
-  const validHistoricalVolumes = historicalFirst5mCandles
+  const historicalVolumes = historicalFirst5mCandles
     .map(candle => candle?.volume)
     .filter(vol => vol !== null && vol !== undefined && vol > 0);
 
   let rvol = null;
-  if (validHistoricalVolumes.length > 0) {
-    const avgOpenVol = validHistoricalVolumes.reduce((sum, vol) => sum + vol, 0) / validHistoricalVolumes.length;
-    rvol = volume / avgOpenVol;
+  if (historicalVolumes.length > 0) {
+    const rvolResult = calculateSingleCandleRVol(volume, historicalVolumes);
+    rvol = rvolResult.rvol;
   }
 
   const openLowQ = openPos <= (config.lowerQuantile || 0.20);
@@ -372,7 +379,7 @@ export function get5mORBDetails({
     closePos: (closePos * 100).toFixed(1) + '%',
     bodyRatio: (bodyRatio * 100).toFixed(1) + '%',
     isGreen: greenOK,
-    historicalSamples: validHistoricalVolumes.length
+    historicalSamples: historicalVolumes.length
   };
 }
 
@@ -404,14 +411,14 @@ export function checkAndAnnounceADRMilestone({
   const adrPercentage = Math.round(adrRatio * 100);
 
   // Define milestone thresholds
-  const milestones = [25, 50, 75, 100, 150, 200];
+  const milestones = [75, 100, 150, 200, 300, 400, 500];
 
   // Check if any milestone is reached
   for (const milestone of milestones) {
     const milestoneKey = `${symbol}-${milestone}`;
 
     if (adrPercentage >= milestone && !announcedMilestones.has(milestoneKey)) {
-      announce(`${symbol} today's move is now at ${milestone}% of 20D ADR`);
+      announce(`${symbol} today's move is now at ${milestone}% of 20D ADR`, symbol);
       announcedMilestones.add(milestoneKey);
 
       // Clean up old milestones (keep current day's data)
@@ -431,4 +438,191 @@ export function checkAndAnnounceADRMilestone({
  */
 export function resetADRMilestones() {
   announcedMilestones.clear();
+}
+
+/**
+ * Evaluates the first 5-minute candle (9:30-9:35 ET) for BEARISH opening candles
+ * Returns tier level: null (no data), 0 (doesn't qualify), 1 (tier-1: light red), 2 (tier-2: dark red)
+ *
+ * Bearish version of evaluate5mORB - mirrors the bullish logic but for strong downward moves:
+ * - Open position >= 80% of range (opens near high)
+ * - Close position <= 20% of range (closes near low)
+ * - Body >= 55% of range
+ * - Red candle (close < open)
+ * - RVOL tier-1 >= 0.25x (light red)
+ * - RVOL tier-2 >= 1.50x (dark red)
+ *
+ * @param {object} params
+ * @param {object} params.first5mCandle The 9:30-9:35 ET candle {open, high, low, close, volume}
+ * @param {object[]} params.historicalFirst5mCandles Array of historical first 5m candles for RVOL calc
+ * @param {object} params.config Optional config overrides {lowerQuantile, upperQuantile, minBodyFrac, rvolTier1, rvolTier2, minSamples}
+ * @returns {number|null} null (no data), 0 (no match), 1 (tier-1), 2 (tier-2)
+ */
+export function evaluate5mORBBearish({
+  first5mCandle,
+  historicalFirst5mCandles = [],
+  config = {}
+}) {
+  // Default Pine Script parameters (mirrored for bearish)
+  const {
+    lowerQuantile = 0.20,
+    upperQuantile = 0.80,
+    minBodyFrac = 0.55,
+    requireGreen = false, // We want red candles
+    rvolTier1 = 0.25,
+    rvolTier2 = 1.50,
+    minSamples = 10
+  } = config;
+
+  // No data yet
+  if (!first5mCandle) {
+    return null;
+  }
+
+  const { open, high, low, close, volume } = first5mCandle;
+
+  // Validate candle data
+  if (
+    open === null || open === undefined ||
+    high === null || high === undefined ||
+    low === null || low === undefined ||
+    close === null || close === undefined ||
+    volume === null || volume === undefined
+  ) {
+    return null;
+  }
+
+  // === PRICE CRITERIA (priceOK in Pine Script - BEARISH VERSION) ===
+
+  const range = high - low;
+
+  // Range check (rngOK) - must have some range
+  if (range <= 0) {
+    return 0;
+  }
+
+  // Open position in range (should be >= 80% for bearish)
+  const openPos = (open - low) / range;
+  const openHighQ = openPos >= upperQuantile;
+
+  // Close position in range (should be <= 20% for bearish)
+  const closePos = (close - low) / range;
+  const closeLowQ = closePos <= lowerQuantile;
+
+  // Body ratio (body >= 55% of range)
+  const body = Math.abs(close - open);
+  const bodyOK = body >= range * minBodyFrac;
+
+  // Red candle check (close < open for bearish)
+  const redOK = !requireGreen ? close < open : true;
+
+  // Combined price check for bearish
+  const priceOK = openHighQ && closeLowQ && bodyOK && redOK;
+
+  if (!priceOK) {
+    return 0; // Doesn't meet price criteria
+  }
+
+  // === RVOL CALCULATION (TRUE opening-bar RVOL) ===
+
+  // Extract historical volumes
+  const historicalVolumes = historicalFirst5mCandles
+    .map(candle => candle?.volume)
+    .filter(vol => vol !== null && vol !== undefined && vol > 0);
+
+  // Not enough samples
+  if (historicalVolumes.length < minSamples) {
+    return 0; // Can't calculate RVOL without enough history
+  }
+
+  // Use shared RVol calculation utility
+  const rvolResult = calculateSingleCandleRVol(volume, historicalVolumes);
+
+  if (rvolResult.error || rvolResult.rvol === null) {
+    return 0; // Can't calculate RVOL
+  }
+
+  const rvol = rvolResult.rvol;
+
+  // === TIER EVALUATION ===
+
+  // Tier-2: RVOL >= 1.50x (very bearish)
+  if (rvol >= rvolTier2) {
+    return 2;
+  }
+
+  // Tier-1: RVOL >= 0.25x (bearish)
+  if (rvol >= rvolTier1) {
+    return 1;
+  }
+
+  // Doesn't meet RVOL threshold
+  return 0;
+}
+
+/**
+ * Gets detailed 5m ORB bearish information for debugging/display
+ * @param {object} params Same as evaluate5mORBBearish
+ * @returns {object} Detailed breakdown
+ */
+export function get5mORBBearishDetails({
+  first5mCandle,
+  historicalFirst5mCandles = [],
+  config = {}
+}) {
+  const tier = evaluate5mORBBearish({ first5mCandle, historicalFirst5mCandles, config });
+
+  if (!first5mCandle) {
+    return {
+      tier: null,
+      status: 'No data',
+      rvol: null,
+      priceOK: false
+    };
+  }
+
+  const { open, high, low, close, volume } = first5mCandle;
+  const range = high - low;
+
+  if (range <= 0) {
+    return {
+      tier: 0,
+      status: 'No range',
+      rvol: null,
+      priceOK: false
+    };
+  }
+
+  const openPos = (open - low) / range;
+  const closePos = (close - low) / range;
+  const body = Math.abs(close - open);
+  const bodyRatio = body / range;
+
+  const historicalVolumes = historicalFirst5mCandles
+    .map(candle => candle?.volume)
+    .filter(vol => vol !== null && vol !== undefined && vol > 0);
+
+  let rvol = null;
+  if (historicalVolumes.length > 0) {
+    const rvolResult = calculateSingleCandleRVol(volume, historicalVolumes);
+    rvol = rvolResult.rvol;
+  }
+
+  const openHighQ = openPos >= (config.upperQuantile || 0.80);
+  const closeLowQ = closePos <= (config.lowerQuantile || 0.20);
+  const bodyOK = bodyRatio >= (config.minBodyFrac || 0.55);
+  const redOK = close < open;
+  const priceOK = openHighQ && closeLowQ && bodyOK && redOK;
+
+  return {
+    tier,
+    status: tier === 2 ? 'Tier-2 (Very Bearish)' : tier === 1 ? 'Tier-1 (Bearish)' : tier === 0 ? 'No match' : 'No data',
+    rvol: rvol !== null ? rvol.toFixed(2) : 'N/A',
+    priceOK,
+    openPos: (openPos * 100).toFixed(1) + '%',
+    closePos: (closePos * 100).toFixed(1) + '%',
+    bodyRatio: (bodyRatio * 100).toFixed(1) + '%',
+    isRed: redOK,
+    historicalSamples: historicalVolumes.length
+  };
 }

@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 /* eslint-disable react-hooks/set-state-in-effect */
 import { toggleMute, isMuted, isSupported } from '../utils/voiceAlerts';
 import { VoiceSettings } from './VoiceSettings';
-import { runTestScenario, runAllTests, startRandomTesting, stopRandomTesting } from '../utils/orbTestConsole';
+import { MOCK_DATA_MODE } from '../config/constants';
+import { useData } from '../context/DataContext';
 
 /**
  * Header Component
@@ -17,22 +18,18 @@ import { runTestScenario, runAllTests, startRandomTesting, stopRandomTesting } f
  * @param {boolean} props.apiConfigured Whether API keys are configured
  */
 export function Header({ connected, currentTime, marketOpen, marketStatus, apiConfigured }) {
-  const [muted, setMuted] = useState(false);
+  const { globalMuted, setGlobalMuted } = useData();
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
-  const [isRandomTesting, setIsRandomTesting] = useState(false);
-  const [randomTestInterval, setRandomTestInterval] = useState(null);
 
   useEffect(() => {
     const supported = isSupported();
-    console.log('Voice support detected:', supported);
     setVoiceSupported(supported);
-    setMuted(isMuted());
   }, []);
 
   const handleToggleMute = () => {
     const newMutedState = toggleMute();
-    setMuted(newMutedState);
+    setGlobalMuted(newMutedState);
   };
 
   const handleVoiceSettingsClick = () => {
@@ -43,39 +40,6 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
     setShowVoiceSettings(false);
   };
 
-  // ORB Test handlers
-  const handleTestORBConfirmed = () => {
-    runTestScenario('strongBreakout');
-  };
-
-  const handleTestStrongOpening = () => {
-    runTestScenario('strongOpening');
-  };
-
-  const handleRunAllTests = () => {
-    runAllTests();
-  };
-
-  const handleToggleRandomTesting = () => {
-    if (isRandomTesting) {
-      stopRandomTesting(randomTestInterval);
-      setRandomTestInterval(null);
-      setIsRandomTesting(false);
-    } else {
-      const intervalId = startRandomTesting(3000); // Test every 3 seconds
-      setRandomTestInterval(intervalId);
-      setIsRandomTesting(true);
-    }
-  };
-
-  // Cleanup random testing on unmount
-  useEffect(() => {
-    return () => {
-      if (randomTestInterval) {
-        stopRandomTesting(randomTestInterval);
-      }
-    };
-  }, [randomTestInterval]);
   return (
     <>
       <header className="header">
@@ -117,11 +81,11 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
         <div className="voice-control">
           {/* Voice alert controls */}
           <button
-            className={`voice-mute-btn ${muted ? 'muted' : 'unmuted'}`}
+            className={`voice-mute-btn ${globalMuted ? 'muted' : 'unmuted'}`}
             onClick={handleToggleMute}
-            title={muted ? 'Unmute voice alerts' : 'Mute voice alerts'}
+            title={globalMuted ? 'Unmute voice alerts' : 'Mute voice alerts'}
           >
-            {muted ? '🔇' : '🔊'}
+            {globalMuted ? '🔇' : '🔊'}
           </button>
           <button
             className="voice-settings-btn"
@@ -130,40 +94,6 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
           >
             ⚙️
           </button>
-
-          {/* ORB Test buttons - only show if voice is supported */}
-          {voiceSupported && (
-            <>
-              <button
-                className="orb-test-btn"
-                onClick={handleTestORBConfirmed}
-                title="Test 'ORB is confirmed' voice announcement"
-              >
-                🎯 ORB ✅
-              </button>
-              <button
-                className="orb-test-btn"
-                onClick={handleTestStrongOpening}
-                title="Test 'opening candle is strong' voice announcement"
-              >
-                📈 Strong 🟡
-              </button>
-              <button
-                className="orb-test-btn"
-                onClick={handleRunAllTests}
-                title="Run all ORB voice tests"
-              >
-                🧪 All Tests
-              </button>
-              <button
-                className={`orb-test-btn ${isRandomTesting ? 'random-testing-active' : ''}`}
-                onClick={handleToggleRandomTesting}
-                title={isRandomTesting ? 'Stop random ORB testing' : 'Start random ORB testing'}
-              >
-                {isRandomTesting ? '⏹️ Stop' : '🎲 Random'}
-              </button>
-            </>
-          )}
         </div>
         <div className="connection-status">
           <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`}></span>
@@ -175,6 +105,12 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
           <span className={`status-dot ${apiConfigured ? 'connected' : 'disconnected'}`}></span>
           <span className="status-text">
             API Keys
+          </span>
+        </div>
+        <div className="mode-status" title={MOCK_DATA_MODE ? 'Using simulated data for testing' : 'Using real market data'}>
+          <span className={`status-dot ${MOCK_DATA_MODE ? 'warning' : 'connected'}`}></span>
+          <span className="status-text">
+            {MOCK_DATA_MODE ? 'TEST' : 'LIVE'}
           </span>
         </div>
       </div>

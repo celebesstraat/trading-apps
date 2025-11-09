@@ -14,6 +14,7 @@ import { getProvider } from '../services/marketData';
  * @returns {object} { prices, connected, error, reconnect }
  */
 export function useRealtimePrice(symbols) {
+  // Initialize all hooks first (before any conditional logic)
   const [prices, setPrices] = useState({});
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
@@ -21,6 +22,11 @@ export function useRealtimePrice(symbols) {
   const providerRef = useRef(null);
   const symbolsRef = useRef(symbols);
   const reconnectTimeoutRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const symbolChangeTimeoutRef = useRef(null);
+
+  // Check for empty symbols (but don't return early - hooks must be called in consistent order)
+  const hasSymbols = symbols && symbols.length > 0;
 
   // Update symbols ref when it changes
   useEffect(() => {
@@ -65,7 +71,14 @@ export function useRealtimePrice(symbols) {
       setConnected(true);
 
     } catch (err) {
-      setError(err.message);
+      // Handle specific rate limit errors with longer backoff
+      if (err.message?.includes('connection limit exceeded') || err.code === 406) {
+        console.warn('Rate limit hit. Using extended backoff...');
+        reconnectAttemptsRef.current += 3; // Jump to longer backoff
+        setError('Rate limit exceeded. Waiting before reconnect...');
+      } else {
+        setError(err.message);
+      }
       setConnected(false);
       // The reconnection will be handled by the useEffect below
     }
@@ -74,15 +87,32 @@ export function useRealtimePrice(symbols) {
   // Handle reconnection when disconnected due to error
   useEffect(() => {
     if (!connected && error && !reconnectTimeoutRef.current) {
+      // Exponential backoff: 5s, 10s, 20s, 30s, 60s max
+      const backoffDelay = Math.min(5000 * Math.pow(2, reconnectAttemptsRef.current), 60000);
+
       reconnectTimeoutRef.current = setTimeout(async () => {
         try {
+          reconnectAttemptsRef.current += 1;
+          console.log(`Attempting to reconnect (attempt ${reconnectAttemptsRef.current}) after ${backoffDelay}ms delay...`);
           await connect();
+
+          // Reset attempts on successful connection
+          if (connected) {
+            reconnectAttemptsRef.current = 0;
+          }
         } catch (reconnectError) {
           console.error('Reconnection failed:', reconnectError);
           setError(reconnectError.message);
           reconnectTimeoutRef.current = null;
+
+          // Stop reconnecting after 10 failed attempts
+          if (reconnectAttemptsRef.current >= 10) {
+            console.error('Max reconnection attempts reached. Stopping reconnection attempts.');
+            setError('Max reconnection attempts reached. Please refresh the page.');
+            return;
+          }
         }
-      }, 5000);
+      }, backoffDelay);
     }
 
     return () => {
@@ -115,6 +145,9 @@ export function useRealtimePrice(symbols) {
 
   // Initialize connection on mount
   useEffect(() => {
+    // Only connect if we have symbols
+    if (!hasSymbols) return;
+
     setTimeout(connect, 0);
 
     // Cleanup on unmount
@@ -123,25 +156,52 @@ export function useRealtimePrice(symbols) {
         clearTimeout(reconnectTimeoutRef.current);
       }
 
+      if (symbolChangeTimeoutRef.current) {
+        clearTimeout(symbolChangeTimeoutRef.current);
+      }
+
       if (providerRef.current && symbolsRef.current.length > 0) {
-        providerRef.current.unsubscribeLive(symbolsRef.current).catch(err => {
+        providerRef.current.unsubscribeLive(symbolsRef.current).catch(() => {
           // Silently ignore unsubscribe errors
         });
       }
     };
-  }, [connect]);
+  }, [connect, hasSymbols]);
 
-  // Handle symbol list changes
-  const symbolList = symbols.join(',');
+  // Handle symbol list changes with debounce
+  const symbolList = symbols ? symbols.join(',') : '';
+
   useEffect(() => {
-    if (!connected || !providerRef.current) {
+    if (!hasSymbols || !connected || !providerRef.current) {
       return;
     }
 
-    // Resubscribe with new symbol list
-    setTimeout(reconnect, 0);
+    // Debounce symbol changes to avoid rapid reconnections
+    if (symbolChangeTimeoutRef.current) {
+      clearTimeout(symbolChangeTimeoutRef.current);
+    }
 
-  }, [symbolList, connected, reconnect]); // Dependencies
+    symbolChangeTimeoutRef.current = setTimeout(() => {
+      console.log('Symbol list changed, reconnecting...');
+      reconnect();
+    }, 1000); // 1 second debounce
+
+    return () => {
+      if (symbolChangeTimeoutRef.current) {
+        clearTimeout(symbolChangeTimeoutRef.current);
+      }
+    };
+  }, [symbolList, connected, reconnect, hasSymbols]); // Dependencies
+
+  // Return early for empty symbols (after all hooks have been called)
+  if (!hasSymbols) {
+    return {
+      prices: {},
+      connected: false,
+      error: null,
+      reconnect: () => {}
+    };
+  }
 
   return {
     prices,

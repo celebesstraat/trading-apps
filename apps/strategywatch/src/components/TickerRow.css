@@ -12,6 +12,13 @@
   text-align: center;
 }
 
+.ticker-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .ticker-symbol {
   color: var(--accent-blue);
   font-size: var(--font-size-ticker);
@@ -55,6 +62,26 @@
 
 .change-red {
   color: var(--status-disconnected);
+}
+
+/* RVol cell styles */
+.rvol-cell {
+  width: var(--cell-change-percent);
+  text-align: center;
+}
+
+.rvol-value {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.rvol-high {
+  color: var(--status-connected); /* Green for high volume */
+}
+
+.rvol-low {
+  color: var(--status-disconnected); /* Red for low volume */
 }
 
 .ma-cell {
@@ -134,37 +161,69 @@
 }
 
 /* Simple traffic light system styles */
-/* Light green for Tier 1 criteria met */
+/* Light green for Bullish Tier 1 criteria met */
 .orb-cell.orb-light-green .orb-indicator {
   background-color: #9CCC65; /* Clear light green - much different from dark */
   color: transparent;
 }
 
-/* Dark green for Tier 2 criteria met */
+/* Dark green for Bullish Tier 2 criteria met */
 .orb-cell.orb-dark-green .orb-indicator {
   background-color: #2E7D32; /* Deep forest green - very distinct */
   color: transparent;
 }
 
+/* Light red for Bearish Tier 1 criteria met */
+.orb-cell.orb-light-red .orb-indicator {
+  background-color: #EF5350; /* Clear light red */
+  color: transparent;
+}
+
+/* Dark red for Bearish Tier 2 criteria met */
+.orb-cell.orb-dark-red .orb-indicator {
+  background-color: #C62828; /* Deep dark red - very distinct */
+  color: transparent;
+}
+
 /* Ensure indicator is visible even when empty */
 .orb-cell.orb-light-green .orb-indicator:empty,
-.orb-cell.orb-dark-green .orb-indicator:empty {
+.orb-cell.orb-dark-green .orb-indicator:empty,
+.orb-cell.orb-light-red .orb-indicator:empty,
+.orb-cell.orb-dark-red .orb-indicator:empty {
   display: inline-block;
 }
 
-/* Luminous green border when price >= 5m ORB high (broken out) */
-.orb-cell.orb-breakout-border .orb-indicator {
+/* Luminous green border when price >= 5m ORB high (bullish breakout) */
+.orb-cell.orb-light-green.orb-breakout-border .orb-indicator,
+.orb-cell.orb-dark-green.orb-breakout-border .orb-indicator {
   border: 3px solid #00ff00;
   box-shadow: 0 0 15px rgba(0, 255, 0, 0.8), inset 0 0 8px rgba(0, 255, 0, 0.3);
-  animation: pulse-luminous 1.5s ease-in-out infinite alternate;
+  animation: pulse-luminous-green 1.5s ease-in-out infinite alternate;
 }
 
-@keyframes pulse-luminous {
+/* Luminous red border when price <= 5m ORB low (bearish breakout) */
+.orb-cell.orb-light-red.orb-breakout-border .orb-indicator,
+.orb-cell.orb-dark-red.orb-breakout-border .orb-indicator {
+  border: 3px solid #ff0000;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.8), inset 0 0 8px rgba(255, 0, 0, 0.3);
+  animation: pulse-luminous-red 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-luminous-green {
   from {
     box-shadow: 0 0 15px rgba(0, 255, 0, 0.8), inset 0 0 8px rgba(0, 255, 0, 0.3);
   }
   to {
     box-shadow: 0 0 25px rgba(0, 255, 0, 1), inset 0 0 12px rgba(0, 255, 0, 0.5);
+  }
+}
+
+@keyframes pulse-luminous-red {
+  from {
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.8), inset 0 0 8px rgba(255, 0, 0, 0.3);
+  }
+  to {
+    box-shadow: 0 0 25px rgba(255, 0, 0, 1), inset 0 0 12px rgba(255, 0, 0, 0.5);
   }
 }
 
@@ -210,4 +269,55 @@
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   line-height: 24px;
+}
+
+/* Inline Mute/Unmute button styling */
+.mute-button-inline {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.mute-button-inline:hover {
+  background-color: var(--bg-hover);
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.mute-button-inline:active {
+  transform: scale(0.95);
+}
+
+.mute-button-inline.muted {
+  opacity: 0.4;
+}
+
+.mute-button-inline.muted:hover {
+  opacity: 0.7;
+}
+
+/* Global mute state - visually disabled */
+.mute-button-inline.global-muted {
+  opacity: 0.25;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.mute-button-inline.global-muted:hover {
+  background-color: transparent;
+  transform: none;
+  opacity: 0.25;
+}
+
+.mute-button-inline:disabled {
+  cursor: not-allowed;
 }

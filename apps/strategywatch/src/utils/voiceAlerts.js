@@ -18,12 +18,35 @@ class VoiceAlerts {
     this.debounceDelay = 2000; // 2 seconds between same announcements
     this.announcementQueue = new Set(); // Track pending announcements
 
+    // Per-ticker muting with localStorage persistence
+    this.mutedTickers = new Set(this.loadMutedTickers());
+
     // Initialize voices
     this.loadVoices();
 
     // Reload voices when they change (Chrome bug fix)
     if (this.speechSynthesis.onvoiceschanged !== undefined) {
       this.speechSynthesis.onvoiceschanged = () => this.loadVoices();
+    }
+  }
+
+  // Load muted tickers from localStorage
+  loadMutedTickers() {
+    try {
+      const stored = localStorage.getItem('mutedTickers');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error loading muted tickers:', error);
+      return [];
+    }
+  }
+
+  // Save muted tickers to localStorage
+  saveMutedTickers() {
+    try {
+      localStorage.setItem('mutedTickers', JSON.stringify([...this.mutedTickers]));
+    } catch (error) {
+      console.error('Error saving muted tickers:', error);
     }
   }
 
@@ -43,14 +66,13 @@ class VoiceAlerts {
     }
   }
 
-  speak(text, immediate = false) {
-    if (this.isMuted) {
-      console.log('🔇 Voice is muted, skipping announcement:', text);
+  speak(text, immediate = false, ticker = null) {
+    if (this.isMuted || !this.speechSynthesis || !('speechSynthesis' in window)) {
       return;
     }
 
-    if (!this.speechSynthesis || !('speechSynthesis' in window)) {
-      console.log('❌ Speech synthesis not supported');
+    // Check if this ticker is muted
+    if (ticker && this.mutedTickers.has(ticker)) {
       return;
     }
 
@@ -119,15 +141,11 @@ class VoiceAlerts {
 
   toggleMute() {
     this.isMuted = !this.isMuted;
-    console.log('🔊 Toggle mute - New mute state:', this.isMuted);
 
     if (this.isMuted) {
       // Cancel current speech and clear queue when muting
       this.speechSynthesis.cancel();
       this.announcementQueue.clear();
-      console.log('🔇 Voice muted - current speech cancelled and queue cleared');
-    } else {
-      console.log('🔊 Voice unmuted');
     }
 
     return this.isMuted;
@@ -152,14 +170,43 @@ class VoiceAlerts {
   isSupported() {
     return 'speechSynthesis' in window;
   }
+
+  // Per-ticker muting methods
+  muteTicker(ticker) {
+    this.mutedTickers.add(ticker);
+    this.saveMutedTickers();
+  }
+
+  unmuteTicker(ticker) {
+    this.mutedTickers.delete(ticker);
+    this.saveMutedTickers();
+  }
+
+  isTickerMuted(ticker) {
+    return this.mutedTickers.has(ticker);
+  }
+
+  toggleTickerMute(ticker) {
+    if (this.mutedTickers.has(ticker)) {
+      this.unmuteTicker(ticker);
+      return false; // Now unmuted
+    } else {
+      this.muteTicker(ticker);
+      return true; // Now muted
+    }
+  }
+
+  getMutedTickers() {
+    return [...this.mutedTickers];
+  }
 }
 
 // Export singleton instance
 export const voiceAlerts = new VoiceAlerts();
 
 // Convenience functions for direct usage
-export const announce = (text) => voiceAlerts.speak(text);
-export const announceImmediate = (text) => voiceAlerts.speak(text, true);
+export const announce = (text, ticker = null) => voiceAlerts.speak(text, false, ticker);
+export const announceImmediate = (text, ticker = null) => voiceAlerts.speak(text, true, ticker);
 export const toggleMute = () => voiceAlerts.toggleMute();
 export const setVolume = (volume) => voiceAlerts.setVolume(volume);
 export const setRate = (rate) => voiceAlerts.setRate(rate);
@@ -167,3 +214,8 @@ export const setVoice = (voice) => voiceAlerts.setVoice(voice);
 export const getAvailableVoices = () => voiceAlerts.getAvailableVoices();
 export const isMuted = () => voiceAlerts.isMuted;
 export const isSupported = () => voiceAlerts.isSupported();
+
+// Per-ticker muting functions
+export const toggleTickerMute = (ticker) => voiceAlerts.toggleTickerMute(ticker);
+export const isTickerMuted = (ticker) => voiceAlerts.isTickerMuted(ticker);
+export const getMutedTickers = () => voiceAlerts.getMutedTickers();

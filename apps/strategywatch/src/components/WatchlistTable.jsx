@@ -11,12 +11,14 @@ import './WatchlistTable.css';
  * @param {object} props.pricesMap Map of ticker -> price data
  * @param {object} props.movingAveragesMap Map of ticker -> moving averages
  * @param {object} props.orb5mDataMap Map of ticker -> 5m ORB data
+ * @param {object} props.rvolDataMap Map of ticker -> RVol data
  */
 export function WatchlistTable({
   tickers,
   pricesMap,
   movingAveragesMap,
-  orb5mDataMap = {}
+  orb5mDataMap = {},
+  rvolDataMap = {}
 }) {
   const [sortColumn, setSortColumn] = useState('10d'); // Default sort by 10D EMA
   const [sortDirection, setSortDirection] = useState('desc');
@@ -68,6 +70,10 @@ export function WatchlistTable({
         case 'changePercent':
           aValue = getChangePercent(a);
           bValue = getChangePercent(b);
+          break;
+        case 'rvol':
+          aValue = rvolDataMap[a]?.rvol ?? -Infinity;
+          bValue = rvolDataMap[b]?.rvol ?? -Infinity;
           break;
         case '10d':
           aValue = getPercentDistance(a, 'ema10');
@@ -128,7 +134,7 @@ export function WatchlistTable({
         return aValue < bValue ? 1 : -1;
       }
     });
-  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap, orb5mDataMap, getPercentDistance, getChangePercent]);
+  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap, orb5mDataMap, rvolDataMap, getPercentDistance, getChangePercent]);
 
   // Get sort indicator
   const getSortIndicator = (column) => {
@@ -160,6 +166,13 @@ export function WatchlistTable({
               title="% Change from previous day's close"
             >
               Change %{getSortIndicator('changePercent')}
+            </th>
+            <th
+              className="sortable"
+              onClick={() => handleSort('rvol')}
+              title="Relative Volume: Current volume vs. 20-day average at same time"
+            >
+              RVol{getSortIndicator('rvol')}
             </th>
             <th
               className="sortable"
@@ -227,6 +240,7 @@ export function WatchlistTable({
               priceData={pricesMap[ticker]}
               movingAverages={movingAveragesMap[ticker]}
               orb5mData={orb5mDataMap[ticker]}
+              rvolData={rvolDataMap[ticker]}
             />
           ))}
         </tbody>
