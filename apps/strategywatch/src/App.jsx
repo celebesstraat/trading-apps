@@ -1,4 +1,5 @@
-import { DataProvider, useData } from './context/DataContext';
+import { DataProvider } from './context/DataContext';
+import { useData } from './hooks/useData';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import WatchlistTable from './components/WatchlistTable';

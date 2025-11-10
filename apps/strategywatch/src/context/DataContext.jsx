@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect } from 'react';
 import { WATCHLIST } from '../config/watchlist';
 import { UPDATE_INTERVALS, DATA_MODE, MOCK_DATA_MODE, VRS_CONFIG } from '../config/constants';
 import { useRealtimePrice } from '../hooks/useRealtimePrice';
@@ -231,7 +231,7 @@ export function DataProvider({ children }) {
     return () => {
       isActive = false;
     };
-  }, [isLiveMode]);
+  }, [isLiveMode, historicalData, mergedPrices, movingAverages]);
 
   // Initialize news service and WebSocket connection
   useEffect(() => {
@@ -782,15 +782,4 @@ export function DataProvider({ children }) {
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
-}
-
-/**
- * Custom hook to use the data context
- */
-export function useData() {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within a DataProvider');
-  }
-  return context;
 }
