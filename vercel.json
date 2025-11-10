@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npm run build:strategywatch",
-  "outputDirectory": "apps/strategywatch/dist",
-  "installCommand": "npm install"
+  "buildCommand": "cd apps/strategywatch && npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": "vite"
 }
