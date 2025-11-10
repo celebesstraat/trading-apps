@@ -3,6 +3,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import WatchlistTable from './components/WatchlistTable';
 import ErrorBoundary from './components/ErrorBoundary';
+import { MARKET_DATA_CONFIG } from './config/constants';
 import './styles/global.css';
 import './App.css';
 
@@ -128,6 +129,23 @@ VITE_ALPACA_DATA_FEED=iex
       />
 
       <main className="main-content">
+        {/* Debug Environment Variables */}
+        <div style={{
+          background: '#1a1a1a',
+          color: '#fff',
+          padding: '10px',
+          margin: '10px 0',
+          fontSize: '12px',
+          fontFamily: 'monospace',
+          border: '1px solid #333'
+        }}>
+          <strong>ENV DEBUG:</strong><br/>
+          API_KEY_ID: {MARKET_DATA_CONFIG.API_KEY_ID ? `${MARKET_DATA_CONFIG.API_KEY_ID.substring(0, 8)}... (${MARKET_DATA_CONFIG.API_KEY_ID.length} chars)` : 'NOT SET'}<br/>
+          SECRET_KEY: {MARKET_DATA_CONFIG.SECRET_KEY ? `${MARKET_DATA_CONFIG.SECRET_KEY.substring(0, 8)}... (${MARKET_DATA_CONFIG.SECRET_KEY.length} chars)` : 'NOT SET'}<br/>
+          DATA_FEED: {MARKET_DATA_CONFIG.DATA_FEED}<br/>
+          SANDBOX: {MARKET_DATA_CONFIG.SANDBOX.toString()}
+        </div>
+
         {!marketOpen && (
           <div className="market-closed-banner">
             Market is currently closed. Displaying last known prices.
