@@ -12,7 +12,7 @@ export const MARKET_DATA_CONFIG = {
   PROVIDER: 'alpaca',
   API_KEY_ID: import.meta.env.VITE_ALPACA_API_KEY_ID,
   SECRET_KEY: import.meta.env.VITE_ALPACA_SECRET_KEY,
-  DATA_FEED: import.meta.env.VITE_ALPACA_DATA_FEED || 'iex', // 'iex' (free) or 'sip' (paid)
+  DATA_FEED: (import.meta.env.VITE_ALPACA_DATA_FEED || 'iex').trim(), // 'iex' (free) or 'sip' (paid)
   SANDBOX: import.meta.env.VITE_ALPACA_SANDBOX === 'true',
   RATE_LIMIT: 200 // Free tier: 200 calls/min (vs Finnhub's 60/min)
 };

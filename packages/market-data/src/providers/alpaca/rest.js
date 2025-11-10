@@ -44,7 +44,9 @@ export class AlpacaRestClient {
     // Add query parameters
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        url.searchParams.append(key, value);
+        // Trim whitespace and newline characters from values
+        const cleanValue = typeof value === 'string' ? value.trim() : value;
+        url.searchParams.append(key, cleanValue);
       }
     });
 

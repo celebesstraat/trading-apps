@@ -1,19 +1,5 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "apps/strategywatch/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "installCommand": "npm install",
-        "buildCommand": "npm run build:strategywatch"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/apps/strategywatch/dist/$1"
-    }
-  ]
+  "buildCommand": "npm run build:strategywatch",
+  "outputDirectory": "apps/strategywatch/dist",
+  "installCommand": "npm install"
 }
