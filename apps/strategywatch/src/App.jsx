@@ -143,7 +143,11 @@ VITE_ALPACA_DATA_FEED=iex
           API_KEY_ID: {MARKET_DATA_CONFIG.API_KEY_ID ? `${MARKET_DATA_CONFIG.API_KEY_ID.substring(0, 8)}... (${MARKET_DATA_CONFIG.API_KEY_ID.length} chars)` : 'NOT SET'}<br/>
           SECRET_KEY: {MARKET_DATA_CONFIG.SECRET_KEY ? `${MARKET_DATA_CONFIG.SECRET_KEY.substring(0, 8)}... (${MARKET_DATA_CONFIG.SECRET_KEY.length} chars)` : 'NOT SET'}<br/>
           DATA_FEED: {MARKET_DATA_CONFIG.DATA_FEED}<br/>
-          SANDBOX: {MARKET_DATA_CONFIG.SANDBOX.toString()}
+          SANDBOX: {MARKET_DATA_CONFIG.SANDBOX.toString()}<br/>
+          <strong>ERROR DEBUG:</strong><br/>
+          Error: {error || 'None'}<br/>
+          Connected: {connected ? 'Yes' : 'No'}<br/>
+          Data Mode: {import.meta.env.VITE_DATA_MODE || 'rest'}
         </div>
 
         {!marketOpen && (
