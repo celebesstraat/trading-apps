@@ -207,6 +207,7 @@ export class AlpacaWebSocketClient {
     }
 
     // Quote message: { T: 'q', S: symbol, bp: bid_price, bs: bid_size, ap: ask_price, as: ask_size, t: timestamp }
+    // NOTE: We don't update price from quotes to avoid confusion between bid/ask/last trade
     else if (type === 'q') {
       const update = {
         type: 'quote',
@@ -215,7 +216,6 @@ export class AlpacaWebSocketClient {
         bidSize: message.bs,
         askPrice: normalizePrice(message.ap),
         askSize: message.as,
-        price: normalizePrice(message.ap || message.bp), // Use ask as primary price
         timestamp: normalizeTimestamp(message.t),
         source: 'alpaca'
       };
@@ -224,6 +224,7 @@ export class AlpacaWebSocketClient {
     }
 
     // Bar message: { T: 'b', S: symbol, o: open, h: high, l: low, c: close, v: volume, t: timestamp }
+    // NOTE: We don't update price from bars to avoid confusion with bar close prices
     else if (type === 'b') {
       const update = {
         type: 'bar',
@@ -231,7 +232,6 @@ export class AlpacaWebSocketClient {
         open: normalizePrice(message.o),
         high: normalizePrice(message.h),
         low: normalizePrice(message.l),
-        price: normalizePrice(message.c), // Use close as price
         volume: message.v,
         vwap: normalizePrice(message.vw), // Volume-weighted average price
         tradeCount: message.n, // Number of trades

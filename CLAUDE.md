@@ -53,10 +53,11 @@ A React 18 + Vite real-time trading strategy monitor with the following key arch
 
 **Data Flow:**
 - `DataContext.jsx` provides centralized state management for all market data
-- Uses shared `@trading-apps/market-data` package with Alpaca Markets provider
-- WebSocket provides real-time price updates (hybrid mode: WebSocket + REST fallback)
-- REST API loads historical data on startup
+- **Alpaca Markets**: Single data source for simplicity and reliability
+  - **WebSocket**: Real-time price ticks (sub-second updates, unlimited streaming)
+  - **REST API**: Historical bars, quotes, and intraday candles (200 RPM, IEX data)
 - Strategy calculations (`orbStrategy.js`, `inmereloStrategy.js`) process data into scoring
+- `rvolDatabase.js` - IndexedDB storage for historical 5m candles (RVol calculation)
 
 **Component Structure:**
 - `App.jsx` - Main application with market hours detection
@@ -72,20 +73,22 @@ A React 18 + Vite real-time trading strategy monitor with the following key arch
 - Both return 0-100 scores that map to RAG (Red-Amber-Green) color gradient
 
 **Key Services:**
-- `marketData.js` - Centralized market data management
+- `marketData.js` - Alpaca Markets provider (real-time WebSocket + REST)
 - `calculations.js` - Price change and technical indicator calculations
 - `newsService.js` - Market news and announcements
 - `voiceAlerts.js` - Text-to-speech alert system
+- `rvolDatabase.js` - IndexedDB storage for RVol historical data
 
 ## Configuration
 
 ### Environment Variables
 Required in `apps/strategywatch/.env`:
 ```
+# Alpaca Markets (real-time WebSocket + REST API)
 VITE_ALPACA_API_KEY_ID=your_alpaca_api_key_id
 VITE_ALPACA_SECRET_KEY=your_alpaca_secret_key
 VITE_ALPACA_DATA_FEED=iex
-VITE_ALPACA_SANDBOX=true
+VITE_ALPACA_SANDBOX=false
 ```
 
 ### Key Configuration Files
@@ -95,12 +98,45 @@ VITE_ALPACA_SANDBOX=true
 
 ## Data Sources
 
-**Alpaca Markets API:**
-- WebSocket: Real-time price updates (excellent reliability)
-- REST: Historical data (200 calls/minute rate limit on free tier)
-- Data feeds: IEX (free) or SIP (paid)
-- Usage pattern: Hybrid mode with WebSocket + REST fallback
-- Better rate limits and WebSocket support compared to Finnhub
+The app uses **Alpaca Markets** as the single data source for simplicity, reliability, and better rate limits:
+
+### Data Usage
+
+| Data Type | Source | Details |
+|-----------|--------|---------|
+| **Real-time Price Ticks** | Alpaca WebSocket | Sub-second updates, unlimited streaming, IEX data |
+| **Historical Daily Bars** | Alpaca REST | 250 days for MA calculations (10D, 21D, 50D, etc.) |
+| **Previous Close** | Alpaca REST | Quote API provides previous close for % change |
+| **ORB 5m Candle** | Alpaca REST | First 5-minute candle (9:30-9:35 AM) for breakout detection |
+| **Intraday 5m Candles** | Alpaca REST | For RVol calculation (relative volume analysis) |
+| **Moving Averages** | Calculated | Computed from daily bars on-demand |
+
+### API Rate Limits
+
+**Alpaca Free Tier:**
+- **WebSocket**: Unlimited real-time streaming (primary data source)
+- **REST**: 200 calls/min
+- **Data Feed**: IEX (free tier) - covers all major US stocks and ETFs
+- **Startup usage**: ~60 REST calls (30 tickers × 2 calls: daily bars + quotes)
+- **During market hours**: Minimal REST usage (WebSocket provides real-time data)
+- **ORB fetch**: ~30 calls at market open (one per ticker for 5m candle)
+
+### Why Alpaca-Only?
+
+**Simplicity:**
+- Single API to manage and monitor
+- No complex routing logic or cache coordination
+- Fewer environment variables and configuration
+
+**Reliability:**
+- No dependency on multiple providers
+- Fewer points of failure
+- Consistent data quality (all IEX)
+
+**Performance:**
+- Better rate limits (200 RPM vs 60 RPM)
+- No latency from refinement delays
+- Instant ORB signals without waiting for secondary confirmations
 
 ## Development Notes
 
@@ -131,12 +167,11 @@ VITE_ALPACA_SANDBOX=true
 - Alpaca provides excellent WebSocket reliability
 - Check browser console for connection errors
 - Ensure stable internet connection
-- Hybrid mode falls back to REST if WebSocket fails
+- REST API serves as automatic fallback if WebSocket disconnects
 
 **Data Loading:**
 - Initial load takes 10-30 seconds (historical data for all tickers)
 - Scores show "—" during initial data fetch
-- Alpaca has broader market coverage than Finnhub
 - IEX data feed covers most major US stocks and ETFs
 
 ## Deployment

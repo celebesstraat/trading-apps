@@ -17,6 +17,7 @@ function AppContent() {
     movingAverages,
     orb5mData,
     rvolData,
+    vrsData,
     connected,
     marketOpen,
     currentTime,
@@ -25,6 +26,7 @@ function AppContent() {
     isWeekend,
     isLoading,
     loading,
+    loadingProgress,
     error,
     lastUpdate,
     apiConfigured
@@ -91,7 +93,20 @@ VITE_ALPACA_DATA_FEED=iex
         />
         <div className="loading-container">
           <div className="loading-spinner"></div>
-          <p>Loading historical data...</p>
+          <p>
+            {loadingProgress.stage && loadingProgress.total > 0
+              ? `${loadingProgress.stage} (${loadingProgress.completed}/${loadingProgress.total})`
+              : 'Loading historical data...'
+            }
+          </p>
+          {loadingProgress.stage && loadingProgress.total > 0 && (
+            <div className="loading-progress-bar">
+              <div
+                className="loading-progress-fill"
+                style={{ width: `${(loadingProgress.completed / loadingProgress.total) * 100}%` }}
+              />
+            </div>
+          )}
         </div>
         <Footer
           lastUpdate={lastUpdate}
@@ -125,6 +140,7 @@ VITE_ALPACA_DATA_FEED=iex
           movingAveragesMap={movingAverages}
           orb5mDataMap={orb5mData}
           rvolDataMap={rvolData}
+          vrsDataMap={vrsData}
         />
       </main>
 

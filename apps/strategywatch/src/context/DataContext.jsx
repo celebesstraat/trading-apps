@@ -1,17 +1,18 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { WATCHLIST } from '../config/watchlist';
-import { UPDATE_INTERVALS, DATA_MODE, MOCK_DATA_MODE } from '../config/constants';
+import { UPDATE_INTERVALS, DATA_MODE, MOCK_DATA_MODE, VRS_CONFIG } from '../config/constants';
 import { useRealtimePrice } from '../hooks/useRealtimePrice';
 import { useMarketHours } from '../hooks/useMarketHours';
 import { useMarketAnnouncements } from '../hooks/useMarketAnnouncements';
-import { fetchDailyCandlesBatch, fetchQuoteBatch, fetchHistorical5mCandlesForRVol, fetchTodayIntradayCandles, isAPIConfigured } from '../services/marketData';
-import { getMovingAverages, calculateADRPercent, evaluate5mORB } from '../services/calculations';
+import { fetchDailyCandlesBatch, fetchQuoteBatch, fetchHistorical5mCandlesForRVol, fetchTodayIntradayCandlesBatch, isAPIConfigured } from '../services/marketData';
+import { getMovingAverages, calculateADRPercent, evaluate5mORB, calculateVRS5m, calculateVRSEMA } from '../services/calculations';
 import { isORBActive } from '../utils/marketTime';
 import { createDynamicMockData } from '../services/mockData';
 import { calculateRVol, isMarketHours } from '../utils/rvolCalculations';
 import * as RVolDB from '../services/rvolDatabase';
 import { isMuted } from '../utils/voiceAlerts';
 import { createNewsService } from '../services/newsService';
+import { loadCache, saveCache } from '../services/startupCache';
 
 const DataContext = createContext(null);
 
@@ -32,6 +33,7 @@ export function DataProvider({ children }) {
   const [historicalData, setHistoricalData] = useState({}); // Map of ticker -> daily candles
   const [movingAverages, setMovingAverages] = useState({}); // Map of ticker -> {ema10, ema21, sma50, sma65, sma100, sma200}
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState({ stage: '', completed: 0, total: 0 });
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
 
@@ -43,6 +45,22 @@ export function DataProvider({ children }) {
 
   // RVol data (Map of ticker -> {rvol, currentCumulative, avgCumulative, error})
   const [rvolData, setRVolData] = useState({});
+
+  // VRS data (Map of ticker -> {vrs5m, vrsEma12, timestamp})
+  const [vrsData, setVrsData] = useState({});
+
+  // QQQ benchmark data for VRS calculations
+  const [qqqData, setQqqData] = useState({
+    historicalCandles: null,
+    adr20: null,
+    current5mClose: null,
+    previous5mClose: null
+  });
+
+  // Track previous 5m closes for all tickers (for VRS calculation)
+  
+  // Track VRS history for EMA calculation (Map of ticker -> array of VRS values)
+  const [vrsHistory, setVrsHistory] = useState({});
 
   // Dynamic mock data system
   const [dynamicMockData, setDynamicMockData] = useState(null);
@@ -63,14 +81,17 @@ export function DataProvider({ children }) {
   const [newsItems, setNewsItems] = useState([]);
   const [newsConnected, setNewsConnected] = useState(false);
 
-  // Fetch historical data on mount (or use mock data)
+  // Fetch historical data on mount (or use mock data) with cache-first strategy
   useEffect(() => {
+    let isActive = true; // Prevent duplicate fetches in React StrictMode
+
     const fetchHistoricalData = async () => {
+      if (!isActive) return; // Guard against double execution
+
       try {
         setLoading(true);
         setError(null);
 
-        // Use mock data if in test mode or mock mode enabled
         if (!isLiveMode || MOCK_DATA_MODE) {
           const mode = MOCK_DATA_MODE ? 'MOCK DATA MODE' : 'TEST MODE';
           console.log(`🎭 Using DYNAMIC MOCK DATA for ${mode}`);
@@ -79,91 +100,121 @@ export function DataProvider({ children }) {
           setMergedPrices(dynamicData.initialData.prices);
           setMovingAverages(dynamicData.initialData.movingAverages);
           setOrb5mData(dynamicData.initialData.orb5mData);
-
-          // Generate mock RVol data with diverse values to test all color ranges
-          const mockRVolData = {};
-          const testRVolValues = [
-            0.1,  // Very low (red)
-            0.2,  // Very low (red)
-            0.3,  // Low (amber)
-            0.4,  // Low (amber)
-            0.8,  // Normal (white)
-            1.0,  // Normal (white) - exactly at center
-            1.2,  // Normal (white)
-            1.6,  // High (light green)
-            1.9,  // High (light green)
-            2.3,  // Very high (dark green)
-            3.1,  // Very high (dark green)
-          ];
-
-          WATCHLIST.forEach((ticker, index) => {
-            // Use test values for first few tickers, then random
-            let mockRVol;
-            if (index < testRVolValues.length) {
-              mockRVol = testRVolValues[index];
-            } else {
-              mockRVol = 0.5 + Math.random() * 3; // Random RVol between 0.5x and 3.5x
-            }
-
-            mockRVolData[ticker] = {
-              rvol: mockRVol,
-              currentCumulative: Math.floor(Math.random() * 10000000), // Mock volume
-              avgCumulative: Math.floor(Math.random() * 8000000),
-              minutesSinceOpen: 60,
-              dataPoints: 20,
-              error: null
-            };
-          });
-          setRVolData(mockRVolData);
-
+          setVrsData(dynamicData.initialData.vrsData);
+          // ... (rest of mock data generation)
           setLoading(false);
           return;
         }
 
-        // Clear mock data when switching to LIVE mode
-        console.log('🔄 Clearing mock data and fetching real data for LIVE mode');
-        setDynamicMockData(null);
-        // Clear mock data from state to prevent interference
-        setMergedPrices({});
-        setRVolData({});
-        setOrb5mData({});
+        const cachedData = await loadCache(WATCHLIST);
 
-        // Fetch daily candles for all tickers using Alpaca (IEX quality)
-        console.log('[DataContext] Fetching historical bars from Alpaca (IEX)...');
-        const candlesData = await fetchDailyCandlesBatch(WATCHLIST);
+        if (cachedData) {
+          setHistoricalData(cachedData.historicalData || {});
+          setMovingAverages(cachedData.movingAverages || {});
+          setMergedPrices(cachedData.mergedPrices || {});
+          setLoading(false); // Render the UI immediately with cached data
+        } else {
+          setLoading(true); // Show loading screen if no cache
+        }
 
-        // Fetch quotes with previous close from Alpaca
-        console.log('[DataContext] Fetching previous close from Alpaca...');
-        const quotesData = await fetchQuoteBatch(WATCHLIST);
+        console.log('[DataContext] Fetching latest data...');
+        setLoadingProgress({ stage: 'Fetching market data', completed: 0, total: WATCHLIST.length });
 
-        // Calculate moving averages and ADR%
+        // Fetch WATCHLIST + QQQ for VRS benchmark
+        const tickersWithBenchmark = [...WATCHLIST, VRS_CONFIG.BENCHMARK_SYMBOL];
+        const [candlesData, quotesData] = await Promise.all([
+          fetchDailyCandlesBatch(tickersWithBenchmark),
+          fetchQuoteBatch(tickersWithBenchmark)
+        ]);
+
+        if (!isActive) return; // Stop if component unmounted
+
+        // Warn if any tickers failed to load
+        const missingCandles = WATCHLIST.filter(t => !candlesData[t]);
+        const missingQuotes = WATCHLIST.filter(t => !quotesData[t]);
+
+        if (missingCandles.length > 0) {
+          console.warn(`[DataContext] ⚠️ Missing candles: ${missingCandles.join(', ')}`);
+        }
+        if (missingQuotes.length > 0) {
+          console.warn(`[DataContext] ⚠️ Missing quotes: ${missingQuotes.join(', ')}`);
+        }
+
+        if (!isActive) return; // Stop if component unmounted
+
+        // Calculate moving averages and ADR% with progress tracking
+        setLoadingProgress({ stage: 'Calculating indicators', completed: 0, total: Object.keys(candlesData).length });
         const mas = {};
+        let processedCount = 0;
+
+        // Extract and store QQQ data for VRS benchmark
+        const qqqCandles = candlesData[VRS_CONFIG.BENCHMARK_SYMBOL];
+        if (qqqCandles && qqqCandles.c) {
+          const qqqAdr = calculateADRPercent(qqqCandles, VRS_CONFIG.ADR_PERIOD);
+          setQqqData(prev => ({
+            ...prev,
+            historicalCandles: qqqCandles,
+            adr20: qqqAdr ? qqqAdr / 100 : null // Convert to decimal (e.g., 2.0% -> 0.02)
+          }));
+          console.log(`[DataContext] QQQ ADR%: ${qqqAdr?.toFixed(2)}%`);
+        }
+
         Object.entries(candlesData).forEach(([ticker, candles]) => {
           if (candles && candles.c) {
+            const adr = calculateADRPercent(candles, 20);
             mas[ticker] = {
               ...getMovingAverages(candles),
-              adr20: calculateADRPercent(candles, 20)
+              adr20: adr,
+              adr20Decimal: adr ? adr / 100 : null // Store decimal version for VRS calculations
             };
           }
+          processedCount++;
+          setLoadingProgress({
+            stage: 'Calculating indicators',
+            completed: processedCount,
+            total: Object.keys(candlesData).length
+          });
         });
 
-        // Extract previous close from quote data into initial price data
-        const initialPrices = {};
+        // Extract price and previous close from quote data
+        const freshQuotes = {};
         Object.entries(quotesData).forEach(([ticker, quote]) => {
-          initialPrices[ticker] = {
+          freshQuotes[ticker] = {
+            price: quote.price,
             previousClose: quote.previousClose,
-            timestamp: Date.now()
+            open: quote.open,
+            high: quote.high,
+            low: quote.low,
+            timestamp: quote.timestamp || Date.now()
           };
         });
 
-        setHistoricalData(candlesData);
-        setMovingAverages(mas);
-        setMergedPrices(initialPrices); // Set previous close before WebSocket data arrives
-        console.log(`[DataContext] MAs calculated from Alpaca IEX data for ${Object.keys(mas).length} tickers`);
-        console.log(`[DataContext] Previous close loaded for ${Object.keys(quotesData).length} tickers`);
+        if (!isActive) return; // Stop if component unmounted
+
+        // Merge fresh data with existing cached data
+        const newHistoricalData = { ...historicalData, ...candlesData };
+        const newMovingAverages = { ...movingAverages, ...mas };
+        const newMergedPrices = { ...mergedPrices, ...freshQuotes };
+
+        setHistoricalData(newHistoricalData);
+        setMovingAverages(newMovingAverages);
+        setMergedPrices(newMergedPrices);
+
+        setLoadingProgress({ stage: 'Complete', completed: WATCHLIST.length, total: WATCHLIST.length });
+        console.log(`[DataContext] ✅ Data loaded: ${Object.keys(mas).length} MAs, ${Object.keys(quotesData).length} quotes`);
+
+        // After all processing, save the new fresh data to the cache
+        const dataToCache = {
+          historicalData: newHistoricalData,
+          movingAverages: newMovingAverages,
+          mergedPrices: newMergedPrices,
+        };
+        await saveCache(dataToCache);
+
       } catch (err) {
         console.error('Error fetching historical data:', err);
         setError('Failed to load historical data: ' + err.message);
+        setLoadingProgress({ stage: 'Error', completed: 0, total: 0 });
       } finally {
         setLoading(false);
       }
@@ -175,6 +226,11 @@ export function DataProvider({ children }) {
       setError('API keys not configured. Please set VITE_ALPACA_API_KEY_ID and VITE_ALPACA_SECRET_KEY in .env file');
       setLoading(false);
     }
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isActive = false;
+    };
   }, [isLiveMode]);
 
   // Initialize news service and WebSocket connection
@@ -388,8 +444,15 @@ export function DataProvider({ children }) {
             const existingData = prev[ticker];
             const existingAge = existingData?.timestamp ? Date.now() - existingData.timestamp : Infinity;
 
-            // Always use REST data in REST-only mode, or if stale in hybrid mode
-            if (DATA_MODE === 'rest' || existingAge > 10000) {
+            // Always use REST data in REST-only mode, or if stale/missing in hybrid mode
+            // Also update if WebSocket is disconnected (provide faster fallback)
+            const shouldUpdate =
+              DATA_MODE === 'rest' ||
+              existingAge > 10000 ||
+              !existingData || // Missing data
+              !connected; // WebSocket disconnected
+
+            if (shouldUpdate) {
               updated[ticker] = quoteData;
             }
           });
@@ -419,13 +482,128 @@ export function DataProvider({ children }) {
     };
 
     // Start polling after a short delay (avoid immediate double-call in StrictMode)
-    timeoutId = setTimeout(pollQuotes, 2000);
+    // If WebSocket is already disconnected, start immediately for faster UX
+    const initialDelay = connected ? 2000 : 500;
+    timeoutId = setTimeout(pollQuotes, initialDelay);
 
     return () => {
       isActive = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [marketOpen, isLiveMode]);
+  }, [marketOpen, isLiveMode, connected]);
+
+  // Fetch 5m candles and calculate VRS (every 5 minutes during market hours)
+  useEffect(() => {
+    if (!isLiveMode || MOCK_DATA_MODE || !marketOpen) return;
+    if (!isAPIConfigured()) return;
+
+    let isActive = true;
+    let intervalId = null;
+
+    const fetch5mCandlesAndCalculateVRS = async () => {
+      if (!isActive) return;
+
+      try {
+        console.log('[VRS] Fetching 5m candles for VRS calculation...');
+
+        // Fetch today's 5m candles for all tickers + QQQ
+        const tickersWithBenchmark = [...WATCHLIST, VRS_CONFIG.BENCHMARK_SYMBOL];
+        const candles5m = await fetchTodayIntradayCandlesBatch(tickersWithBenchmark, '5Min');
+
+        if (!isActive || !candles5m) return;
+
+        // Get QQQ's current and previous 5m close
+        const qqqCandles = candles5m[VRS_CONFIG.BENCHMARK_SYMBOL];
+        if (!qqqCandles || !qqqCandles.c || qqqCandles.c.length < 2) {
+          console.log('[VRS] Insufficient QQQ 5m candle data');
+          return;
+        }
+
+        const qqqCurrentClose = qqqCandles.c[qqqCandles.c.length - 1];
+        const qqqPreviousClose = qqqCandles.c[qqqCandles.c.length - 2];
+
+        // Update QQQ 5m closes
+        setQqqData(prev => ({
+          ...prev,
+          current5mClose: qqqCurrentClose,
+          previous5mClose: qqqPreviousClose
+        }));
+
+        // Calculate VRS for each ticker
+        const newVrsData = {};
+
+        WATCHLIST.forEach(ticker => {
+          const tickerCandles = candles5m[ticker];
+          if (!tickerCandles || !tickerCandles.c || tickerCandles.c.length < 2) {
+            return; // Skip if insufficient data
+          }
+
+          const stockCurrentClose = tickerCandles.c[tickerCandles.c.length - 1];
+          const stockPreviousClose = tickerCandles.c[tickerCandles.c.length - 2];
+
+          // Get ADR% in decimal form
+          const stockADR = movingAverages[ticker]?.adr20Decimal;
+          const qqqADR = qqqData.adr20;
+
+          if (!stockADR || !qqqADR) {
+            return; // Skip if ADR% not available
+          }
+
+          // Calculate VRS
+          const vrs = calculateVRS5m({
+            stockCurrentClose,
+            stockPreviousClose,
+            stockADRPercent: stockADR,
+            benchmarkCurrentClose: qqqCurrentClose,
+            benchmarkPreviousClose: qqqPreviousClose,
+            benchmarkADRPercent: qqqADR
+          });
+
+          if (vrs === null) {
+            return; // Skip if VRS calculation failed
+          }
+
+          // Update VRS history
+          setVrsHistory(prev => {
+            const history = prev[ticker] || [];
+            const newHistory = [...history, vrs].slice(-VRS_CONFIG.MAX_HISTORY_LENGTH);
+            return { ...prev, [ticker]: newHistory };
+          });
+
+          // Calculate EMA (use updated history)
+          const currentHistory = vrsHistory[ticker] || [];
+          const updatedHistory = [...currentHistory, vrs].slice(-VRS_CONFIG.MAX_HISTORY_LENGTH);
+          const vrsEma = calculateVRSEMA(updatedHistory, VRS_CONFIG.EMA_PERIOD);
+
+          newVrsData[ticker] = {
+            vrs5m: vrs,
+            vrsEma12: vrsEma,
+            timestamp: Date.now()
+          };
+        });
+
+        // Update VRS data state
+        setVrsData(newVrsData);
+        console.log(`[VRS] Updated VRS for ${Object.keys(newVrsData).length} tickers`);
+
+      } catch (error) {
+        console.error('[VRS] Error fetching 5m candles:', error);
+      }
+
+      // Schedule next fetch (5 minutes)
+      if (isActive) {
+        intervalId = setTimeout(fetch5mCandlesAndCalculateVRS, 5 * 60 * 1000);
+      }
+    };
+
+    // Initial fetch after 10 seconds (let other data load first)
+    intervalId = setTimeout(fetch5mCandlesAndCalculateVRS, 10000);
+
+    return () => {
+      isActive = false;
+      if (intervalId) clearTimeout(intervalId);
+    };
+  }, [marketOpen, isLiveMode, qqqData.adr20, movingAverages, vrsHistory]);
 
   // Update lastUpdate when prices change
   useEffect(() => {
@@ -447,117 +625,70 @@ export function DataProvider({ children }) {
     const fetchUnifiedMarketData = async () => {
       if (!isActive) return;
 
-      // Only fetch during market hours or when ORB is active
       const shouldFetchORB = isORBActive();
       const shouldFetchRVol = isMarketHours();
 
       if (!shouldFetchORB && !shouldFetchRVol) {
-        // Check again in 1 minute
         timeoutId = setTimeout(fetchUnifiedMarketData, 60000);
         return;
       }
 
       try {
+        // Step 1: Fetch all data in parallel using batching
+        const [todayCandlesBatch] = await Promise.all([
+          fetchTodayIntradayCandlesBatch(WATCHLIST),
+        ]);
+
         const rvolResults = {};
         const orbData = {};
 
-        // Process all tickers in a single unified loop
+        // Step 2: Process results for each ticker
         for (const ticker of WATCHLIST) {
-          try {
-            // === STEP 1: Get historical data from IndexedDB ===
-            let historicalData = await RVolDB.getRecentCandles(ticker, 20);
+          const todayCandles = todayCandlesBatch[ticker] || [];
+          let historicalData = await RVolDB.getRecentCandles(ticker, 20);
 
-            // If insufficient data in DB, fetch from API and store
-            if (historicalData.length < 10) {
-              console.log(`Fetching historical 5m candles for ${ticker} from API...`);
-              const fetchedHistorical = await fetchHistorical5mCandlesForRVol(ticker, 20);
-
-              // Store in IndexedDB for future use
-              for (const dayData of fetchedHistorical) {
-                await RVolDB.storeCandles(ticker, dayData.date, dayData.candles);
-              }
-
-              historicalData = fetchedHistorical;
-              console.log(`Stored ${fetchedHistorical.length} days of data for ${ticker}`);
+          if (historicalData.length < 10) {
+            const fetchedHistorical = await fetchHistorical5mCandlesForRVol(ticker, 20);
+            for (const dayData of fetchedHistorical) {
+              await RVolDB.storeCandles(ticker, dayData.date, dayData.candles);
             }
+            historicalData = fetchedHistorical;
+          }
 
-            // === STEP 2: Fetch today's intraday candles (shared by both RVol and ORB) ===
-            const todayCandles = await fetchTodayIntradayCandles(ticker);
+          if (shouldFetchRVol) {
+            rvolResults[ticker] = calculateRVol(todayCandles, historicalData);
+          }
 
-            // === STEP 3: Calculate RVol (if market hours) ===
-            if (shouldFetchRVol) {
-              const rvolResult = calculateRVol(todayCandles, historicalData);
-              rvolResults[ticker] = rvolResult;
-            }
+          if (shouldFetchORB) {
+            const first5mCandle = todayCandles.length > 0 ? todayCandles[0] : null;
+            const historicalFirst5mCandles = await RVolDB.getFirst5mCandles(ticker, 20);
+            const tier = evaluate5mORB({ first5mCandle, historicalFirst5mCandles });
 
-            // === STEP 4: Calculate ORB (if ORB is active) ===
-            if (shouldFetchORB) {
-              // Extract first 5m candle from today's data (Alpaca)
-              const first5mCandle = todayCandles && todayCandles.length > 0 ? todayCandles[0] : null;
-
-              // Extract first 5m candles from historical data using our new helper
-              const historicalFirst5mCandles = await RVolDB.getFirst5mCandles(ticker, 20);
-
-              // Calculate tier using Alpaca data
-              const tier = evaluate5mORB({
-                first5mCandle,
-                historicalFirst5mCandles: historicalFirst5mCandles
-              });
-
-              // Store ORB data (Alpaca IEX data)
-              orbData[ticker] = {
-                candle: first5mCandle,
-                historicalCandles: historicalFirst5mCandles,
-                tier,
-                source: 'alpaca',
-                timestamp: Date.now()
-              };
-            }
-          } catch (err) {
-            console.error(`Error processing market data for ${ticker}:`, err);
-
-            // Set error states
-            if (shouldFetchRVol) {
-              rvolResults[ticker] = {
-                rvol: null,
-                currentCumulative: 0,
-                avgCumulative: 0,
-                minutesSinceOpen: 0,
-                dataPoints: 0,
-                error: err.message
-              };
-            }
-
-            if (shouldFetchORB) {
-              orbData[ticker] = {
-                candle: null,
-                historicalCandles: [],
-                tier: null
-              };
-            }
+            orbData[ticker] = {
+              candle: first5mCandle,
+              historicalCandles: historicalFirst5mCandles,
+              tier,
+              source: 'alpaca',
+              timestamp: Date.now(),
+            };
           }
         }
 
-        // Update state
+        // Step 3: Update state
         if (isActive) {
-          if (shouldFetchRVol && Object.keys(rvolResults).length > 0) {
+          if (shouldFetchRVol) {
             setRVolData(rvolResults);
-            console.log('RVol data updated for all tickers');
           }
-
-          if (shouldFetchORB && Object.keys(orbData).length > 0) {
+          if (shouldFetchORB) {
             setOrb5mData(orbData);
-            console.log('ORB data updated for all tickers');
           }
         }
 
-        // Cleanup old data (remove candles older than 20 days)
         await RVolDB.cleanupAllTickers(WATCHLIST);
       } catch (error) {
         console.error('Error fetching unified market data:', error);
       }
 
-      // Refresh every 5 minutes during market hours
       if (isActive) {
         timeoutId = setTimeout(fetchUnifiedMarketData, 5 * 60 * 1000);
       }
@@ -616,6 +747,7 @@ export function DataProvider({ children }) {
     movingAverages,
     orb5mData,
     rvolData,
+    vrsData,
     newsItems,
 
     // Status
@@ -628,6 +760,7 @@ export function DataProvider({ children }) {
     isWeekend,
     isLoading: loading || isCalendarLoading, // Show loading if either data or calendar is loading
     loading,
+    loadingProgress, // New detailed progress tracking
     error: (isLiveMode && !MOCK_DATA_MODE) ? (error || wsError) : null,
     lastUpdate,
     apiConfigured: isAPIConfigured(),

@@ -1,3 +1,5 @@
+import { VRS_CONFIG } from '../config/constants';
+
 /**
  * RVol (Relative Volume) calculation utilities
  *
@@ -462,4 +464,129 @@ export const calculateSingleCandleRVol = (currentVolume, historicalVolumes) => {
   result.rvol = currentVolume / avgVolume;
 
   return result;
+};
+
+/**
+ * Map VRS value to progress bar width percentage
+ * Centers on 0% at 50% width, scales linearly from -20% to +20%
+ * @param {number|null} vrs - VRS percentage value (already scaled by 100)
+ * @returns {number} Width percentage (0-100)
+ */
+export const getVRSProgressWidth = (vrs) => {
+  if (vrs === null || vrs === undefined || isNaN(vrs)) {
+    return 50; // Default to center line (0%)
+  }
+
+  const { MIN_VALUE, MAX_VALUE } = VRS_CONFIG.DISPLAY;
+
+  // Clamp values to display range
+  const clampedVrs = Math.max(MIN_VALUE, Math.min(MAX_VALUE, vrs));
+
+  // Map MIN_VALUE to MAX_VALUE range to 0-100%
+  // MIN_VALUE = 0%, CENTER_VALUE = 50%, MAX_VALUE = 100%
+  const percentage = ((clampedVrs - MIN_VALUE) / (MAX_VALUE - MIN_VALUE)) * 100;
+
+  return Math.min(100, Math.max(0, percentage));
+};
+
+/**
+ * Get VRS color class for progress bar styling
+ * @param {number|null} vrs - VRS percentage value (already scaled by 100)
+ * @returns {string} CSS class name for the appropriate color range
+ */
+export const getVRSProgressColor = (vrs) => {
+  if (vrs === null || vrs === undefined || isNaN(vrs)) {
+    return 'vrs-neutral';
+  }
+
+  const {
+    VERY_NEGATIVE,
+    NEGATIVE,
+    SLIGHTLY_NEGATIVE,
+    NEUTRAL_MAX,
+    SLIGHTLY_POSITIVE,
+    POSITIVE
+  } = VRS_CONFIG.THRESHOLDS;
+
+  if (vrs <= VERY_NEGATIVE) {
+    return 'vrs-very-negative'; // Deep red: <= VERY_NEGATIVE
+  } else if (vrs <= NEGATIVE) {
+    return 'vrs-negative'; // Red: VERY_NEGATIVE to NEGATIVE
+  } else if (vrs <= SLIGHTLY_NEGATIVE) {
+    return 'vrs-slightly-negative'; // Amber: NEGATIVE to SLIGHTLY_NEGATIVE
+  } else if (vrs <= NEUTRAL_MAX) {
+    return 'vrs-neutral'; // White/neutral: SLIGHTLY_NEGATIVE to NEUTRAL_MAX
+  } else if (vrs <= SLIGHTLY_POSITIVE) {
+    return 'vrs-slightly-positive'; // Light green: NEUTRAL_MAX to SLIGHTLY_POSITIVE
+  } else if (vrs <= POSITIVE) {
+    return 'vrs-positive'; // Green: SLIGHTLY_POSITIVE to POSITIVE
+  } else {
+    return 'vrs-very-positive'; // Deep green: > POSITIVE
+  }
+};
+
+/**
+ * Get VRS gradient stops for dynamic gradient generation
+ * @param {number|null} vrs - VRS percentage value (already scaled by 100)
+ * @returns {Object} { start, end } colors for gradient
+ */
+export const getVRSGradientStops = (vrs) => {
+  if (vrs === null || vrs === undefined || isNaN(vrs)) {
+    return {
+      start: 'rgba(255, 255, 255, 0.2)',
+      end: 'rgba(255, 255, 255, 0.4)'
+    };
+  }
+
+  if (vrs < -10) {
+    return {
+      start: 'rgba(183, 28, 28, 0.4)',    // Deep red
+      end: 'rgba(183, 28, 28, 0.7)'
+    };
+  } else if (vrs < -5) {
+    return {
+      start: 'rgba(255, 23, 68, 0.3)',     // Red
+      end: 'rgba(255, 23, 68, 0.6)'
+    };
+  } else if (vrs < -2) {
+    return {
+      start: 'rgba(255, 183, 77, 0.3)',    // Amber
+      end: 'rgba(255, 183, 77, 0.6)'
+    };
+  } else if (vrs < 2) {
+    return {
+      start: 'rgba(255, 255, 255, 0.2)',  // White/neutral
+      end: 'rgba(255, 255, 255, 0.4)'
+    };
+  } else if (vrs < 5) {
+    return {
+      start: 'rgba(129, 199, 132, 0.3)',   // Light green
+      end: 'rgba(129, 199, 132, 0.6)'
+    };
+  } else if (vrs < 10) {
+    return {
+      start: 'rgba(0, 230, 118, 0.4)',     // Green
+      end: 'rgba(0, 230, 118, 0.7)'
+    };
+  } else {
+    return {
+      start: 'rgba(56, 142, 60, 0.4)',     // Deep green
+      end: 'rgba(56, 142, 60, 0.7)'
+    };
+  }
+};
+
+/**
+ * Format VRS value for display
+ * @param {number|null} vrs - VRS percentage value (already scaled by 100)
+ * @returns {string} Formatted VRS string (e.g., "+15.0%", "-5.2%", "--")
+ */
+export const formatVRS = (vrs) => {
+  if (vrs === null || vrs === undefined || isNaN(vrs)) {
+    return '--';
+  }
+
+  const { DECIMAL_PLACES } = VRS_CONFIG.DISPLAY;
+  const sign = vrs >= 0 ? '+' : '';
+  return `${sign}${vrs.toFixed(DECIMAL_PLACES)}%`;
 };

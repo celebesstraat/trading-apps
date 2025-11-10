@@ -28,7 +28,7 @@ const RVolProgress = ({
       <div className="rvol-progress-container">
         <div className="rvol-progress-track" />
         <div className="rvol-progress-center-line" />
-        <span className="rvol-progress-text mono">—</span>
+        <span className="rvol-progress-text mono"></span>
       </div>
     );
   }

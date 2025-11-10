@@ -97,7 +97,7 @@ export class AlpacaRestClient {
 
       return {
         symbol: data.symbol || symbol,
-        price: normalizePrice(quote.ap || trade.p || 0), // Use ask price or last trade price
+        price: normalizePrice(trade.p || quote.ap || 0), // Use last trade price first, then ask price
         timestamp: normalizeTimestamp(quote.t || Date.now()),
         volume: trade.s || 0,
         open: null,
@@ -154,27 +154,73 @@ export class AlpacaRestClient {
   }
 
   /**
-   * Fetch quotes for multiple symbols
+   * Fetch quotes for multiple symbols using turbocharged parallel processing
    * @param {string[]} symbols - Array of stock ticker symbols
    * @returns {Promise<Object.<string, import('../../types/market-data.js').MarketQuote>>}
    */
   async fetchQuoteBatch(symbols) {
-    const results = {};
+    if (!symbols || symbols.length === 0) return {};
 
-    // Alpaca doesn't have a batch endpoint, so we fetch sequentially
-    // The rate limiter will handle throttling
-    for (const symbol of symbols) {
-      try {
-        const quote = await this.fetchLatestTrade(symbol); // Use trade for better performance
-        if (quote) {
-          results[symbol] = quote;
-        }
-      } catch (error) {
-        // Silently ignore errors for individual symbols
+    try {
+      const endpoint = '/v2/stocks/quotes/latest';
+      const data = await this.request(endpoint, {
+        symbols: symbols.join(','),
+        feed: this.config.dataFeed || 'iex'
+      });
+
+      const resultMap = {};
+      if (data && data.quotes) {
+        Object.entries(data.quotes).forEach(([symbol, quote]) => {
+          resultMap[symbol] = {
+            symbol: symbol,
+            price: normalizePrice(quote.ap || 0),
+            timestamp: normalizeTimestamp(quote.t || Date.now()),
+            volume: 0, // Not available in this endpoint
+            open: null, // Not available in this endpoint
+            high: null,
+            low: null,
+            previousClose: null, // Will fetch this from snapshot/daily bars
+            source: 'alpaca',
+            metadata: {
+              exchange: quote.ax || 'IEX',
+              bidPrice: normalizePrice(quote.bp),
+              bidSize: quote.bs || 0,
+              askPrice: normalizePrice(quote.ap),
+              askSize: quote.as || 0,
+              conditions: quote.c || []
+            }
+          };
+        });
       }
-    }
 
-    return results;
+      const snapshots = await this.fetchSnapshotBatch(symbols);
+      Object.entries(snapshots).forEach(([symbol, snapshot]) => {
+        if (resultMap[symbol] && snapshot.dailyBar) {
+          resultMap[symbol].open = normalizePrice(snapshot.dailyBar.o);
+          resultMap[symbol].high = normalizePrice(snapshot.dailyBar.h);
+          resultMap[symbol].low = normalizePrice(snapshot.dailyBar.l);
+
+          // FIX: Use latest trade or daily bar close if quote price is 0 (pre-market/after-hours)
+          if (resultMap[symbol].price === 0 || !resultMap[symbol].price) {
+            resultMap[symbol].price = normalizePrice(
+              snapshot.latestTrade?.p ||   // Latest trade price
+              snapshot.dailyBar.c ||        // Today's close/current price
+              snapshot.prevDailyBar?.c ||   // Previous close as last resort
+              0
+            );
+          }
+        }
+        if (resultMap[symbol] && snapshot.prevDailyBar) {
+            resultMap[symbol].previousClose = normalizePrice(snapshot.prevDailyBar.c);
+        }
+      });
+
+      return resultMap;
+
+    } catch (error) {
+      console.error(`[AlpacaRest] Quote fetch error:`, error.message);
+      return {};
+    }
   }
 
   /**
@@ -185,16 +231,17 @@ export class AlpacaRestClient {
    * @param {number} to - End timestamp (Unix seconds or milliseconds)
    * @returns {Promise<import('../../types/market-data.js').CandleData|null>}
    */
-  async fetchCandles(symbol, resolution, from, to) {
+  async fetchCandlesBatch(symbols, resolution, from, to) {
+    if (!symbols || symbols.length === 0) return {};
+
+    const timeframe = convertResolutionToTimeframe(resolution);
+    const startDate = new Date(toUnixSeconds(from) * 1000).toISOString();
+    const endDate = new Date(toUnixSeconds(to) * 1000).toISOString();
+
     try {
-      const timeframe = convertResolutionToTimeframe(resolution);
-      const endpoint = `/v2/stocks/${symbol}/bars`;
-
-      // Convert to RFC-3339 format for Alpaca
-      const startDate = new Date(toUnixSeconds(from) * 1000).toISOString();
-      const endDate = new Date(toUnixSeconds(to) * 1000).toISOString();
-
+      const endpoint = '/v2/stocks/bars';
       const data = await this.request(endpoint, {
+        symbols: symbols.join(','),
         timeframe,
         start: startDate,
         end: endDate,
@@ -202,24 +249,27 @@ export class AlpacaRestClient {
         limit: 10000 // Max limit
       });
 
-      if (!data || !data.bars || data.bars.length === 0) {
-        return null;
+      const resultMap = {};
+      if (data && data.bars) {
+        Object.entries(data.bars).forEach(([symbol, bars]) => {
+          resultMap[symbol] = {
+            symbol,
+            timestamps: bars.map(bar => normalizeTimestamp(bar.t)),
+            open: bars.map(bar => normalizePrice(bar.o)),
+            high: bars.map(bar => normalizePrice(bar.h)),
+            low: bars.map(bar => normalizePrice(bar.l)),
+            close: bars.map(bar => normalizePrice(bar.c)),
+            volume: bars.map(bar => bar.v || 0),
+            source: 'alpaca'
+          };
+        });
       }
 
-      // Convert to normalized format
-      const bars = data.bars;
-      return {
-        symbol,
-        timestamps: bars.map(bar => normalizeTimestamp(bar.t)),
-        open: bars.map(bar => normalizePrice(bar.o)),
-        high: bars.map(bar => normalizePrice(bar.h)),
-        low: bars.map(bar => normalizePrice(bar.l)),
-        close: bars.map(bar => normalizePrice(bar.c)),
-        volume: bars.map(bar => bar.v || 0),
-        source: 'alpaca'
-      };
+      return resultMap;
+
     } catch (error) {
-      return null;
+      console.error(`[AlpacaRest] Candles fetch error:`, error.message);
+      return {};
     }
   }
 
@@ -228,27 +278,20 @@ export class AlpacaRestClient {
    * @param {string} symbol - Stock ticker symbol
    * @returns {Promise<Object|null>}
    */
-  async fetchSnapshot(symbol) {
+  async fetchSnapshotBatch(symbols) {
+    if (!symbols || symbols.length === 0) return {};
+
     try {
-      const endpoint = `/v2/stocks/${symbol}/snapshot`;
+      const endpoint = `/v2/stocks/snapshots`;
       const data = await this.request(endpoint, {
+        symbols: symbols.join(','),
         feed: this.config.dataFeed || 'iex'
       });
 
-      if (!data) {
-        return null;
-      }
-
-      return {
-        symbol: data.symbol || symbol,
-        latestTrade: data.latestTrade,
-        latestQuote: data.latestQuote,
-        minuteBar: data.minuteBar,
-        dailyBar: data.dailyBar,
-        prevDailyBar: data.prevDailyBar
-      };
+      return data || {};
     } catch (error) {
-      return null;
+      console.error(`[AlpacaRest] Snapshot fetch error:`, error.message);
+      return {};
     }
   }
 

@@ -12,7 +12,14 @@
     "build:strategywatch": "npm run build --workspace=strategywatch",
     "preview:strategywatch": "npm run preview --workspace=strategywatch"
   },
-  "keywords": ["trading", "finance", "monorepo"],
+  "keywords": [
+    "trading",
+    "finance",
+    "monorepo"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "idb-keyval": "^6.2.2"
+  }
 }

@@ -43,11 +43,12 @@ export function calculateSMA(prices, period) {
  * Calculates all moving averages from daily candles
  * Matches TradingView's standard EMA/SMA calculations
  * @param {object} dailyCandles Candle data with {c: [closes], ...}
- * @returns {object} Object with ema10, ema21, sma50, sma65, sma100, sma200
+ * @returns {object} Object with sma5, ema10, ema21, sma50, sma65, sma100, sma200
  */
 export function getMovingAverages(dailyCandles) {
   if (!dailyCandles || !dailyCandles.c || dailyCandles.c.length === 0) {
     return {
+      sma5: null,
       ema10: null,
       ema21: null,
       sma50: null,
@@ -60,6 +61,7 @@ export function getMovingAverages(dailyCandles) {
   const closes = dailyCandles.c;
 
   return {
+    sma5: calculateSMA(closes, HISTORICAL_CONFIG.SMA_5_PERIOD),
     ema10: calculateEMA(closes, HISTORICAL_CONFIG.EMA_10_PERIOD),
     ema21: calculateEMA(closes, HISTORICAL_CONFIG.EMA_21_PERIOD),
     sma50: calculateSMA(closes, HISTORICAL_CONFIG.SMA_50_PERIOD),
@@ -667,4 +669,93 @@ export function get5mORBBearishDetails({
     isRed: redOK,
     historicalSamples: historicalVolumes.length
   };
+}
+
+/**
+ * Calculates 5-minute ADR%-Normalized Relative Strength (VRS)
+ * Compares a stock's 5m % change (normalized by its ADR%) against a benchmark's 5m % change (normalized by benchmark's ADR%)
+ *
+ * Formula:
+ * VRS = (ΔC_Stock% / ADR_Stock%) - (ΔC_Benchmark% / ADR_Benchmark%)
+ *
+ * Where:
+ * - ΔC% = (CurrentClose - PreviousClose) / PreviousClose
+ * - ADR% = 20-Day Average Daily Range percentage (in decimal form, e.g., 0.02 for 2%)
+ *
+ * @param {object} params
+ * @param {number} params.stockCurrentClose Current 5m close price of stock
+ * @param {number} params.stockPreviousClose Previous 5m close price of stock
+ * @param {number} params.stockADRPercent Stock's 20D ADR% (in decimal, e.g., 0.02 for 2%)
+ * @param {number} params.benchmarkCurrentClose Current 5m close price of benchmark (e.g., QQQ)
+ * @param {number} params.benchmarkPreviousClose Previous 5m close price of benchmark
+ * @param {number} params.benchmarkADRPercent Benchmark's 20D ADR% (in decimal, e.g., 0.02 for 2%)
+ * @returns {number|null} VRS value (positive = outperformance, negative = underperformance) or null if invalid inputs
+ */
+export function calculateVRS5m({
+  stockCurrentClose,
+  stockPreviousClose,
+  stockADRPercent,
+  benchmarkCurrentClose,
+  benchmarkPreviousClose,
+  benchmarkADRPercent
+}) {
+  // Validate all inputs
+  if (
+    stockCurrentClose === null || stockCurrentClose === undefined ||
+    stockPreviousClose === null || stockPreviousClose === undefined ||
+    benchmarkCurrentClose === null || benchmarkCurrentClose === undefined ||
+    benchmarkPreviousClose === null || benchmarkPreviousClose === undefined
+  ) {
+    return null;
+  }
+
+  // ADR% must be positive and non-zero
+  if (!stockADRPercent || stockADRPercent <= 0 || !benchmarkADRPercent || benchmarkADRPercent <= 0) {
+    return null;
+  }
+
+  // Prevent division by zero
+  if (stockPreviousClose === 0 || benchmarkPreviousClose === 0) {
+    return null;
+  }
+
+  // Calculate 5m % change for stock
+  const stockChangePercent = (stockCurrentClose - stockPreviousClose) / stockPreviousClose;
+
+  // Calculate 5m % change for benchmark
+  const benchmarkChangePercent = (benchmarkCurrentClose - benchmarkPreviousClose) / benchmarkPreviousClose;
+
+  // Calculate VRS: normalized difference
+  const vrs = (stockChangePercent / stockADRPercent) - (benchmarkChangePercent / benchmarkADRPercent);
+
+  return vrs;
+}
+
+/**
+ * Calculates 12-period Exponential Moving Average of VRS values
+ * Uses α = 2/(N+1) = 2/13 ≈ 0.1538 for N=12
+ *
+ * Formula:
+ * EMA_t = (VRS_t × α) + (EMA_t-1 × (1 - α))
+ *
+ * @param {number[]} vrsValues Array of VRS values (oldest to newest)
+ * @param {number} period EMA period (default: 12)
+ * @returns {number|null} EMA value or null if insufficient data
+ */
+export function calculateVRSEMA(vrsValues, period = 12) {
+  if (!vrsValues || vrsValues.length === 0) {
+    return null;
+  }
+
+  // For fewer values than period, still calculate EMA but note it's not fully "warmed up"
+  // Initialize with first value
+  const alpha = 2 / (period + 1);
+  let ema = vrsValues[0];
+
+  // Apply EMA formula iteratively
+  for (let i = 1; i < vrsValues.length; i++) {
+    ema = (vrsValues[i] * alpha) + (ema * (1 - alpha));
+  }
+
+  return ema;
 }

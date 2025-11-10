@@ -343,15 +343,24 @@ export async function fetchLatestBarsWithVWAP(symbols) {
  * @param {string[]} symbols - Array of ticker symbols
  * @returns {Promise<object>} Map of symbol -> candle data
  */
-export async function fetchDailyCandlesBatch(symbols) {
-  const results = {};
+export async function fetchDailyCandlesBatch(symbols, days = 250) {
+  const provider = getProvider();
+  const to = getUnixTimestamp(0); // Now
+  const from = getUnixTimestamp(days); // X days ago
+  const candles = await provider.fetchCandlesBatch(symbols, 'D', from, to);
 
-  for (const symbol of symbols) {
-    try {
-      results[symbol] = await fetchDailyCandles(symbol);
-    } catch (error) {
-      console.error(`Error fetching candles for ${symbol}:`, error);
-      results[symbol] = null;
+  const results = {};
+  for (const [symbol, candleData] of Object.entries(candles)) {
+    if (candleData) {
+        results[symbol] = {
+            c: candleData.close,
+            h: candleData.high,
+            l: candleData.low,
+            o: candleData.open,
+            v: candleData.volume,
+            t: candleData.timestamps.map(ts => Math.floor(ts / 1000)),
+            s: 'ok'
+        };
     }
   }
 
@@ -524,5 +533,52 @@ export async function disconnect() {
   if (providerInstance) {
     await providerInstance.disconnect();
     providerInstance = null;
+  }
+}
+
+/**
+ * Fetches today's 5-minute candles for multiple symbols (for RVol calculation)
+ * @param {string[]} symbols - Array of stock tickers
+ * @returns {Promise<Object>} Map of symbol -> Array of { timestamp, volume, open, high, low, close }
+ */
+export async function fetchTodayIntradayCandlesBatch(symbols) {
+  try {
+    const marketOpenTime = getTodayMarketOpenTimestamp();
+    const now = Date.now();
+    const provider = getProvider();
+
+    // Fetch candles in a single batch
+    const batchCandles = await provider.fetchCandlesBatch(symbols, '5', marketOpenTime, now);
+
+    const results = {};
+    for (const [symbol, candles] of Object.entries(batchCandles)) {
+      if (candles && candles.close && candles.close.length > 0) {
+        const result = [];
+        for (let i = 0; i < candles.timestamps.length; i++) {
+          result.push({
+            timestamp: candles.timestamps[i],
+            volume: candles.volume[i],
+            open: candles.open[i],
+            high: candles.high[i],
+            low: candles.low[i],
+            close: candles.close[i],
+          });
+        }
+        // Sort just in case the provider doesn't guarantee it
+        results[symbol] = result.sort((a, b) => a.timestamp - b.timestamp);
+      } else {
+        results[symbol] = [];
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error(`Error fetching today's intraday candles for batch:`, error);
+    // Return an empty objectkeyed by symbol
+    const results = {};
+    for (const symbol of symbols) {
+      results[symbol] = [];
+    }
+    return results;
   }
 }

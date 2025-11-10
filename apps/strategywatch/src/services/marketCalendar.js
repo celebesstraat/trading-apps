@@ -47,7 +47,6 @@ async function initCalendarDB() {
 async function fetchCalendarFromAPI(startDate, endDate) {
   // Development mode bypass - use mock data directly
   if (DEV_MODE_BYPASS_CALENDAR_API) {
-    console.warn('[Calendar] Development mode: Using mock calendar data (API bypassed)');
     return generateMockCalendarData(startDate, endDate);
   }
 
@@ -128,10 +127,6 @@ function generateMockCalendarData(startDate, endDate) {
     }
   }
 
-  console.log(`[Calendar] Generated ${mockData.length} mock trading days from ${startDate} to ${endDate}`);
-  if (sampleHolidays.some(holiday => holiday >= startDate && holiday <= endDate)) {
-    console.log(`[Calendar] Note: Sample holidays excluded from mock data for testing`);
-  }
   return mockData;
 }
 
@@ -294,8 +289,6 @@ async function getCachedCalendarData(date) {
  */
 export async function refreshCalendar() {
   try {
-    console.log('[Calendar] Refreshing calendar data...');
-
     // Calculate date range (today + 29 days)
     const today = new Date();
     const startDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -309,19 +302,14 @@ export async function refreshCalendar() {
 
     // In development mode, skip caching to avoid IndexedDB issues
     if (DEV_MODE_BYPASS_CALENDAR_API) {
-      console.log(`[Calendar] Development mode: Using ${calendarData.length} mock days without caching`);
       // Store in memory for development
       window.__mockCalendarData = calendarData;
     } else {
       // Cache the data for production
       await cacheCalendarData(calendarData);
     }
-
-    console.log(`[Calendar] Refreshed ${calendarData.length} days of calendar data`);
   } catch (error) {
     console.error('[Calendar] Error refreshing calendar:', error);
-    // Don't throw error, just log it - this allows fallback to weekend logic
-    console.warn('[Calendar] Will fall back to weekend logic for market status');
   }
 }
 

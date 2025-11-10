@@ -12,13 +12,15 @@ import './WatchlistTable.css';
  * @param {object} props.movingAveragesMap Map of ticker -> moving averages
  * @param {object} props.orb5mDataMap Map of ticker -> 5m ORB data
  * @param {object} props.rvolDataMap Map of ticker -> RVol data
+ * @param {object} props.vrsDataMap Map of ticker -> VRS data
  */
 export function WatchlistTable({
   tickers,
   pricesMap,
   movingAveragesMap,
   orb5mDataMap = {},
-  rvolDataMap = {}
+  rvolDataMap = {},
+  vrsDataMap = {}
 }) {
   const [sortColumn, setSortColumn] = useState('10d'); // Default sort by 10D EMA
   const [sortDirection, setSortDirection] = useState('desc');
@@ -75,6 +77,18 @@ export function WatchlistTable({
           aValue = rvolDataMap[a]?.rvol ?? -Infinity;
           bValue = rvolDataMap[b]?.rvol ?? -Infinity;
           break;
+        case 'vrs5m':
+          aValue = vrsDataMap[a]?.vrs5m ?? -Infinity;
+          bValue = vrsDataMap[b]?.vrs5m ?? -Infinity;
+          break;
+        case 'vrsEma12':
+          aValue = vrsDataMap[a]?.vrsEma12 ?? -Infinity;
+          bValue = vrsDataMap[b]?.vrsEma12 ?? -Infinity;
+          break;
+        case '5d':
+          aValue = getPercentDistance(a, 'sma5');
+          bValue = getPercentDistance(b, 'sma5');
+          break;
         case '10d':
           aValue = getPercentDistance(a, 'ema10');
           bValue = getPercentDistance(b, 'ema10');
@@ -86,14 +100,6 @@ export function WatchlistTable({
         case '50d':
           aValue = getPercentDistance(a, 'sma50');
           bValue = getPercentDistance(b, 'sma50');
-          break;
-        case '65d':
-          aValue = getPercentDistance(a, 'sma65');
-          bValue = getPercentDistance(b, 'sma65');
-          break;
-        case '100d':
-          aValue = getPercentDistance(a, 'sma100');
-          bValue = getPercentDistance(b, 'sma100');
           break;
         case 'adr':
           aValue = movingAveragesMap[a]?.adr20 || -Infinity;
@@ -134,7 +140,7 @@ export function WatchlistTable({
         return aValue < bValue ? 1 : -1;
       }
     });
-  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap, orb5mDataMap, rvolDataMap, getPercentDistance, getChangePercent]);
+  }, [tickers, sortColumn, sortDirection, pricesMap, movingAveragesMap, orb5mDataMap, rvolDataMap, vrsDataMap, getPercentDistance, getChangePercent]);
 
   // Get sort indicator
   const getSortIndicator = (column) => {
@@ -168,6 +174,20 @@ export function WatchlistTable({
               Change %{getSortIndicator('changePercent')}
             </th>
             <th
+              className="sortable group-separator"
+              onClick={() => handleSort('vrs5m')}
+              title="VRS (5m): ADR%-normalized relative strength vs QQQ in % terms. Positive = outperformance, Negative = underperformance"
+            >
+              VRS (5m)%{getSortIndicator('vrs5m')}
+            </th>
+            <th
+              className="sortable"
+              onClick={() => handleSort('vrsEma12')}
+              title="EMA₁₂(VRS): 12-period exponential moving average of VRS in % terms for smoothed trend"
+            >
+              EMA₁₂(VRS)%{getSortIndicator('vrsEma12')}
+            </th>
+            <th
               className="sortable group-separator-major"
               onClick={() => handleSort('rvol')}
               title="Relative Volume: Current volume vs. 20-day average at same time"
@@ -197,6 +217,13 @@ export function WatchlistTable({
             </th>
             <th
               className="sortable group-separator-major"
+              onClick={() => handleSort('5d')}
+              title="% Distance from 5-Day SMA"
+            >
+              5D SMA{getSortIndicator('5d')}
+            </th>
+            <th
+              className="sortable"
               onClick={() => handleSort('10d')}
               title="% Distance from 10-Day EMA"
             >
@@ -216,20 +243,6 @@ export function WatchlistTable({
             >
               50D SMA{getSortIndicator('50d')}
             </th>
-            <th
-              className="sortable"
-              onClick={() => handleSort('65d')}
-              title="% Distance from 65-Day SMA"
-            >
-              65D SMA{getSortIndicator('65d')}
-            </th>
-            <th
-              className="sortable"
-              onClick={() => handleSort('100d')}
-              title="% Distance from 100-Day SMA"
-            >
-              100D SMA{getSortIndicator('100d')}
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -241,6 +254,7 @@ export function WatchlistTable({
               movingAverages={movingAveragesMap[ticker]}
               orb5mData={orb5mDataMap[ticker]}
               rvolData={rvolDataMap[ticker]}
+              vrsData={vrsDataMap[ticker]}
             />
           ))}
         </tbody>

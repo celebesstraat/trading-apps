@@ -51,6 +51,24 @@
 .loading-container p {
   color: var(--text-secondary);
   font-size: var(--font-size-price);
+  text-align: center;
+  margin: 0;
+}
+
+.loading-progress-bar {
+  width: 300px;
+  height: 6px;
+  background-color: var(--bg-secondary);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: var(--spacing-sm);
+}
+
+.loading-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
 /* Error State */
@@ -106,4 +124,15 @@
 .error-help a {
   color: var(--accent-blue);
   text-decoration: underline;
+}
+
+/* Stale Data Indicator */
+@keyframes stale-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.ticker-row[data-stale="true"] {
+  animation: stale-glow 2s infinite;
+  background-color: rgba(0, 150, 255, 0.05); /* Subtle blue tint */
 }

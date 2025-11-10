@@ -97,6 +97,32 @@
   color: var(--status-disconnected); /* Red for low volume */
 }
 
+/* VRS cell styles */
+.vrs-cell {
+  width: var(--cell-vrs);
+  text-align: center;
+}
+
+.vrs-value {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.vrs-positive {
+  color: var(--status-connected); /* Green for outperformance */
+  font-weight: var(--font-weight-bold);
+}
+
+.vrs-negative {
+  color: var(--status-disconnected); /* Red for underperformance */
+  font-weight: var(--font-weight-bold);
+}
+
+.vrs-neutral {
+  color: var(--status-warning); /* Amber for neutral */
+}
+
 .ma-cell {
   width: var(--cell-ma);
   text-align: center;
@@ -493,6 +519,137 @@
 
 /* RVOL cell styling */
 .rvol-progress-cell {
+  width: var(--cell-ma);
+  text-align: center;
+  padding: 8px 12px;
+}
+
+/* VRS Progress Bar Styling */
+.vrs-progress-container {
+  position: relative;
+  width: 100%;
+  height: 24px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.vrs-progress-container.clickable:hover {
+  background-color: var(--bg-hover);
+}
+
+.vrs-progress-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.vrs-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 4px;
+  transition: width 150ms ease-out;
+}
+
+/* VRS Color Ranges */
+.vrs-progress-bar.vrs-very-negative {
+  /* Deep red: -20% to -10% */
+  background: linear-gradient(90deg,
+    rgba(183, 28, 28, 0.4),
+    rgba(183, 28, 28, 0.7)
+  );
+}
+
+.vrs-progress-bar.vrs-negative {
+  /* Red: -10% to -5% */
+  background: linear-gradient(90deg,
+    rgba(255, 23, 68, 0.3),
+    rgba(255, 23, 68, 0.6)
+  );
+}
+
+.vrs-progress-bar.vrs-slightly-negative {
+  /* Amber: -5% to -2% */
+  background: linear-gradient(90deg,
+    rgba(255, 183, 77, 0.3),
+    rgba(255, 183, 77, 0.6)
+  );
+}
+
+.vrs-progress-bar.vrs-neutral {
+  /* White/neutral: -2% to +2% */
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.4)
+  );
+}
+
+.vrs-progress-bar.vrs-slightly-positive {
+  /* Light green: +2% to +5% */
+  background: linear-gradient(90deg,
+    rgba(129, 199, 132, 0.3),
+    rgba(129, 199, 132, 0.6)
+  );
+}
+
+.vrs-progress-bar.vrs-positive {
+  /* Green: +5% to +10% */
+  background: linear-gradient(90deg,
+    rgba(0, 230, 118, 0.4),
+    rgba(0, 230, 118, 0.7)
+  );
+}
+
+.vrs-progress-bar.vrs-very-positive {
+  /* Deep green: +10% to +20% */
+  background: linear-gradient(90deg,
+    rgba(56, 142, 60, 0.4),
+    rgba(56, 142, 60, 0.7)
+  );
+}
+
+/* Center line indicator for 0% (neutral VRS) */
+.vrs-progress-center-line {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.vrs-progress-text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure clickable progress bars have proper cursor */
+.vrs-progress-container.clickable {
+  cursor: pointer;
+}
+
+/* VRS cell styling */
+.vrs-progress-cell {
   width: var(--cell-ma);
   text-align: center;
   padding: 8px 12px;

@@ -42,8 +42,7 @@ function generateMockMovingAverages(price, index) {
   const ema10 = price * (0.95 + Math.random() * 0.1); // -5% to +5%
   const ema21 = price * (0.93 + Math.random() * 0.14); // -7% to +7%
   const sma50 = price * (0.90 + Math.random() * 0.15); // -10% to +5%
-  const sma65 = price * (0.88 + Math.random() * 0.18); // -12% to +6%
-  const sma100 = price * (0.85 + Math.random() * 0.20); // -15% to +5%
+  const sma5 = price * (0.97 + Math.random() * 0.06); // -3% to +3%
 
   // ADR% varies from 1.5% (low volatility) to 8.5% (high volatility)
   // Some low values to ensure we get >100% Today's Move for visual testing
@@ -53,9 +52,60 @@ function generateMockMovingAverages(price, index) {
     ema10: Number(ema10.toFixed(2)),
     ema21: Number(ema21.toFixed(2)),
     sma50: Number(sma50.toFixed(2)),
-    sma65: Number(sma65.toFixed(2)),
-    sma100: Number(sma100.toFixed(2)),
+    sma5: Number(sma5.toFixed(2)),
     adr20: Number(adr20.toFixed(2))
+  };
+}
+
+/**
+ * Generates mock VRS (Volume Relative Strength) data
+ * @param {number} index Ticker index for variation
+ * @param {number} price Current price
+ * @param {number} adr20 20-day ADR percentage
+ * @returns {object} Mock VRS data
+ */
+function generateMockVRSData(index, _price, _adr20) {
+  // Create varied VRS scenarios for testing progress bar visualization
+  const vrsScenarios = [
+    // Very strong outperformance (+15% to +20%)
+    () => ({ vrs5m: 0.15 + Math.random() * 0.05, vrsEma12: 0.12 + Math.random() * 0.06 }),
+
+    // Strong outperformance (+8% to +15%)
+    () => ({ vrs5m: 0.08 + Math.random() * 0.07, vrsEma12: 0.06 + Math.random() * 0.07 }),
+
+    // Moderate outperformance (+3% to +8%)
+    () => ({ vrs5m: 0.03 + Math.random() * 0.05, vrsEma12: 0.02 + Math.random() * 0.06 }),
+
+    // Slight outperformance (+1% to +3%)
+    () => ({ vrs5m: 0.01 + Math.random() * 0.02, vrsEma12: 0.005 + Math.random() * 0.02 }),
+
+    // Neutral (-2% to +2%)
+    () => ({ vrs5m: (Math.random() - 0.5) * 0.04, vrsEma12: (Math.random() - 0.5) * 0.03 }),
+
+    // Slight underperformance (-3% to -1%)
+    () => ({ vrs5m: -0.03 - Math.random() * 0.02, vrsEma12: -0.02 - Math.random() * 0.02 }),
+
+    // Moderate underperformance (-8% to -3%)
+    () => ({ vrs5m: -0.08 - Math.random() * 0.05, vrsEma12: -0.06 - Math.random() * 0.06 }),
+
+    // Strong underperformance (-15% to -8%)
+    () => ({ vrs5m: -0.15 - Math.random() * 0.07, vrsEma12: -0.12 - Math.random() * 0.08 }),
+
+    // Very strong underperformance (-20% to -15%)
+    () => ({ vrs5m: -0.20 - Math.random() * 0.05, vrsEma12: -0.18 - Math.random() * 0.07 }),
+
+    // Extreme outliers for testing boundaries (+25% and -25%)
+    () => ({ vrs5m: 0.25 + Math.random() * 0.05, vrsEma12: 0.20 + Math.random() * 0.08 }),
+    () => ({ vrs5m: -0.25 - Math.random() * 0.05, vrsEma12: -0.20 - Math.random() * 0.08 })
+  ];
+
+  const scenario = vrsScenarios[index % vrsScenarios.length];
+  const vrsData = scenario();
+
+  return {
+    vrs5m: Number(vrsData.vrs5m.toFixed(4)),
+    vrsEma12: Number(vrsData.vrsEma12.toFixed(4)),
+    timestamp: Date.now()
   };
 }
 
@@ -419,18 +469,23 @@ export function generateMockData(tickers) {
   const pricesMap = {};
   const movingAveragesMap = {};
   const orb5mDataMap = {};
+  const vrsDataMap = {};
 
   tickers.forEach((ticker, index) => {
     const priceData = generateMockPrice(ticker, index);
+    const movingAverages = generateMockMovingAverages(priceData.price, index);
+
     pricesMap[ticker] = priceData;
-    movingAveragesMap[ticker] = generateMockMovingAverages(priceData.price, index);
+    movingAveragesMap[ticker] = movingAverages;
     orb5mDataMap[ticker] = generateMock5mORB(index, priceData.price);
+    vrsDataMap[ticker] = generateMockVRSData(index, priceData.price, movingAverages.adr20);
   });
 
   return {
     prices: pricesMap,
     movingAverages: movingAveragesMap,
     orb5mData: orb5mDataMap,
+    vrsData: vrsDataMap,
     connected: true,
     marketOpen: true,
     loading: false,
@@ -506,6 +561,29 @@ export function createDynamicMockData(watchlist) {
   }
 
   /**
+   * Updates VRS data to simulate real-time VRS changes
+   * @param {object} currentVrsData Current VRS data
+   * @returns {object} Updated VRS data
+   */
+  function updateVrsData(currentVrsData) {
+    const updatedVrsData = { ...currentVrsData };
+
+    // Randomly change VRS values for some tickers (8% chance each update)
+    Object.keys(updatedVrsData).forEach(ticker => {
+      if (Math.random() < 0.08) { // 8% chance of change
+        const index = watchlist.indexOf(ticker);
+        const currentPrice = initialData.prices[ticker].price;
+        const adr20 = initialData.movingAverages[ticker].adr20;
+
+        // Generate new VRS data with different scenario
+        updatedVrsData[ticker] = generateMockVRSData(index, currentPrice, adr20);
+      }
+    });
+
+    return updatedVrsData;
+  }
+
+  /**
    * Updates ORB data to simulate real-time ORB status changes
    * @param {object} currentOrbData Current ORB data
    * @returns {object} Updated ORB data
@@ -530,6 +608,7 @@ export function createDynamicMockData(watchlist) {
   return {
     initialData,
     updateMockData,
+    updateVrsData,
     updateOrbData
   };
 }

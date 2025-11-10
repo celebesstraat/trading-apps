@@ -2,10 +2,11 @@ import { useMemo, useRef, useEffect, useState } from 'react';
 import { formatPrice, formatTime } from '../utils/formatters';
 import { ORB_THRESHOLDS } from '../config/constants';
 import { announce, toggleTickerMute, isTickerMuted } from '../utils/voiceAlerts';
-import { formatRVol, getRVolColor, getRVolTooltip, getTodayMoveProgressWidth } from '../utils/rvolCalculations';
+import { formatRVol, getRVolColor, getRVolTooltip, getTodayMoveProgressWidth, formatVRS } from '../utils/rvolCalculations';
 import { checkPriceProximityToMA } from '../services/calculations';
 import { useData } from '../context/DataContext';
 import RVolProgress from './RVolProgress';
+import VRSProgress from './VRSProgress';
 import './TickerRow.css';
 
 /**
@@ -15,23 +16,25 @@ import './TickerRow.css';
  * @param {object} props
  * @param {string} props.ticker Stock symbol
  * @param {object} props.priceData Price data {price, timestamp}
- * @param {object} props.movingAverages Moving averages {ema10, ema21, sma50, sma65, sma100, sma200}
+ * @param {object} props.movingAverages Moving averages {sma5, ema10, ema21, sma50, sma200}
  * @param {object} props.orb5mData 5m ORB data {candle, historicalCandles, tier}
  * @param {object} props.rvolData RVol data {rvol, currentCumulative, avgCumulative, error}
+ * @param {object} props.vrsData VRS data {vrs5m, vrsEma12, timestamp}
  */
 export function TickerRow({
   ticker,
   priceData,
   movingAverages,
   orb5mData,
-  rvolData
+  rvolData,
+  vrsData
 }) {
   const price = priceData?.price;
   const timestamp = priceData?.timestamp;
   const previousClose = priceData?.previousClose;
 
   // Get global mute state and news functions from context
-  const { globalMuted, getUnreadNewsCountForTicker } = useData();
+  const { globalMuted, getUnreadNewsCountForTicker, loading } = useData();
 
   // Track muted state for this ticker
   const [isTickerMutedState, setIsTickerMutedState] = useState(() => isTickerMuted(ticker));
@@ -85,6 +88,7 @@ export function TickerRow({
     };
   };
 
+  
   // Track last ORB announcements to prevent duplicate voice alerts
   const lastORBAnnouncement = useRef({
     announcedTier: null,
@@ -354,7 +358,7 @@ export function TickerRow({
     const low = priceData?.low;
 
     if (!high || !low || !price || !adr20Value) {
-      return { ratio: 0, displayText: '—', isOverADR: false };
+      return { ratio: 0, displayText: '', isOverADR: false };
     }
 
     // Calculate today's range (high - low)
@@ -458,18 +462,19 @@ export function TickerRow({
   };
 
   // Get displays for all MAs
+  const sma5Display = getMADisplay(movingAverages?.sma5);
   const ema10Display = getMADisplay(movingAverages?.ema10);
   const ema21Display = getMADisplay(movingAverages?.ema21);
   const sma50Display = getMADisplay(movingAverages?.sma50);
-  const sma65Display = getMADisplay(movingAverages?.sma65);
-  const sma100Display = getMADisplay(movingAverages?.sma100);
   const adr20Display = getADRDisplay(movingAverages?.adr20);
   const rvolDisplay = getRVolDisplay();
   // orb5mDisplay is now memoized above
   const todayADRDisplay = getTodayADRDisplay(movingAverages?.adr20);
 
+  const isStale = loading && priceData;
+
   return (
-    <tr className="ticker-row">
+    <tr className="ticker-row" data-stale={isStale}>
       {/* Ticker with control icons underneath */}
       <td className="ticker-cell">
         <div className="ticker-content-vertical">
@@ -538,6 +543,32 @@ export function TickerRow({
         </span>
       </td>
 
+      {/* VRS 5m */}
+      <td className="vrs-progress-cell group-separator">
+        <VRSProgress
+          vrs={vrsData?.vrs5m}
+          tooltip={vrsData?.vrs5m !== null && vrsData?.vrs5m !== undefined
+            ? `VRS (5m): ${formatVRS(vrsData.vrs5m * 100)}\n${vrsData.vrs5m * 100 > 0 ? 'Outperforming' : 'Underperforming'} QQQ (ADR%-normalized)\n\nClick to open in TradingView`
+            : 'VRS data unavailable (waiting for 5m candle data)\n\nClick to open in TradingView'
+          }
+          onClick={handlePriceClick}
+          clickable={true}
+        />
+      </td>
+
+      {/* VRS EMA12 */}
+      <td className="vrs-progress-cell">
+        <VRSProgress
+          vrs={vrsData?.vrsEma12}
+          tooltip={vrsData?.vrsEma12 !== null && vrsData?.vrsEma12 !== undefined
+            ? `EMA₁₂(VRS): ${formatVRS(vrsData.vrsEma12 * 100)}\nSmoothed ${vrsData.vrsEma12 * 100 > 0 ? 'positive' : 'negative'} momentum vs QQQ\n\nClick to open in TradingView`
+            : 'VRS EMA data unavailable (need 12 periods)\n\nClick to open in TradingView'
+          }
+          onClick={handlePriceClick}
+          clickable={true}
+        />
+      </td>
+
       {/* RVol */}
       <td className="rvol-progress-cell group-separator-major">
         <RVolProgress
@@ -560,7 +591,7 @@ export function TickerRow({
 
       {/* Today's Move (ratio of ADR) */}
       <td className="adr-progress-cell">
-        {todayADRDisplay.displayText !== '—' ? (
+        {todayADRDisplay.displayText ? (
           <div
             className="adr-progress-container clickable"
             onClick={handlePriceClick}
@@ -578,7 +609,7 @@ export function TickerRow({
           <div className="adr-progress-container">
             <div className="adr-progress-track" />
             <div className="adr-progress-center-line" />
-            <span className="adr-progress-text mono">—</span>
+            <span className="adr-progress-text mono"></span>
           </div>
         )}
       </td>
@@ -594,8 +625,22 @@ export function TickerRow({
         </span>
       </td>
 
+      {/* 5D SMA */}
+      <td className={`ma-cell group-separator-major ${getMAProximityClass(movingAverages?.sma5)}`}>
+        <div
+          className="ma-dual-display clickable"
+          onClick={handlePriceClick}
+          title={`${getMATooltip('5D SMA', movingAverages?.sma5)}\n\nClick to open in TradingView`}
+        >
+          <div className="ma-value mono">{sma5Display.value}</div>
+          <div className={`ma-percentage mono ${sma5Display.className}`}>
+            {sma5Display.text}
+          </div>
+        </div>
+      </td>
+
       {/* 10D EMA */}
-      <td className={`ma-cell group-separator-major ${getMAProximityClass(movingAverages?.ema10)}`}>
+      <td className={`ma-cell ${getMAProximityClass(movingAverages?.ema10)}`}>
         <div
           className="ma-dual-display clickable"
           onClick={handlePriceClick}
@@ -632,34 +677,6 @@ export function TickerRow({
           <div className="ma-value mono">{sma50Display.value}</div>
           <div className={`ma-percentage mono ${sma50Display.className}`}>
             {sma50Display.text}
-          </div>
-        </div>
-      </td>
-
-      {/* 65D SMA */}
-      <td className={`ma-cell ${getMAProximityClass(movingAverages?.sma65)}`}>
-        <div
-          className="ma-dual-display clickable"
-          onClick={handlePriceClick}
-          title={`${getMATooltip('65D SMA', movingAverages?.sma65)}\n\nClick to open in TradingView`}
-        >
-          <div className="ma-value mono">{sma65Display.value}</div>
-          <div className={`ma-percentage mono ${sma65Display.className}`}>
-            {sma65Display.text}
-          </div>
-        </div>
-      </td>
-
-      {/* 100D SMA */}
-      <td className={`ma-cell ${getMAProximityClass(movingAverages?.sma100)}`}>
-        <div
-          className="ma-dual-display clickable"
-          onClick={handlePriceClick}
-          title={`${getMATooltip('100D SMA', movingAverages?.sma100)}\n\nClick to open in TradingView`}
-        >
-          <div className="ma-value mono">{sma100Display.value}</div>
-          <div className={`ma-percentage mono ${sma100Display.className}`}>
-            {sma100Display.text}
           </div>
         </div>
       </td>

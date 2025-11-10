@@ -71,12 +71,17 @@ export function useRealtimePrice(symbols) {
       setConnected(true);
 
     } catch (err) {
-      // Handle specific rate limit errors with longer backoff
+      // Handle specific rate limit errors with reasonable backoff
       if (err.message?.includes('connection limit exceeded') || err.code === 406) {
-        console.warn('Rate limit hit. Using extended backoff...');
-        reconnectAttemptsRef.current += 3; // Jump to longer backoff
-        setError('Rate limit exceeded. Waiting before reconnect...');
+        console.warn('Rate limit hit. Using moderate backoff...');
+        reconnectAttemptsRef.current += 1; // Only increment by 1
+        setError('Rate limit exceeded. Will retry...');
+      } else if (err.message?.includes('401') || err.message?.includes('402')) {
+        console.error('Authentication error. Check API credentials.');
+        setError('Authentication failed. Check API credentials.');
+        reconnectAttemptsRef.current = 10; // Skip reconnection for auth errors
       } else {
+        console.error('Connection error:', err);
         setError(err.message);
       }
       setConnected(false);
@@ -87,28 +92,37 @@ export function useRealtimePrice(symbols) {
   // Handle reconnection when disconnected due to error
   useEffect(() => {
     if (!connected && error && !reconnectTimeoutRef.current) {
-      // Exponential backoff: 5s, 10s, 20s, 30s, 60s max
-      const backoffDelay = Math.min(5000 * Math.pow(2, reconnectAttemptsRef.current), 60000);
+      // Aggressive backoff for better UX: 1s, 2s, 4s, 8s, 15s max
+      let backoffDelay;
+      if (reconnectAttemptsRef.current === 0) {
+        backoffDelay = 1000; // 1s for first attempt
+      } else if (reconnectAttemptsRef.current < 3) {
+        backoffDelay = 2000 * Math.pow(2, reconnectAttemptsRef.current - 1); // 2s, 4s
+      } else {
+        backoffDelay = Math.min(8000 * Math.pow(1.5, reconnectAttemptsRef.current - 3), 15000); // 8s, 12s, 15s max
+      }
 
       reconnectTimeoutRef.current = setTimeout(async () => {
         try {
           reconnectAttemptsRef.current += 1;
-          console.log(`Attempting to reconnect (attempt ${reconnectAttemptsRef.current}) after ${backoffDelay}ms delay...`);
+          console.log(`🔄 WebSocket reconnect attempt ${reconnectAttemptsRef.current} after ${backoffDelay}ms...`);
           await connect();
 
           // Reset attempts on successful connection
           if (connected) {
             reconnectAttemptsRef.current = 0;
+            setError(null);
+            console.log('✅ WebSocket reconnected successfully');
           }
         } catch (reconnectError) {
-          console.error('Reconnection failed:', reconnectError);
+          console.error('❌ WebSocket reconnection failed:', reconnectError);
           setError(reconnectError.message);
           reconnectTimeoutRef.current = null;
 
-          // Stop reconnecting after 10 failed attempts
-          if (reconnectAttemptsRef.current >= 10) {
-            console.error('Max reconnection attempts reached. Stopping reconnection attempts.');
-            setError('Max reconnection attempts reached. Please refresh the page.');
+          // Stop reconnecting after 4 failed attempts (even faster fallback to REST)
+          if (reconnectAttemptsRef.current >= 4) {
+            console.log('⚠️ Max WebSocket reconnection attempts reached. Switching to REST API fallback.');
+            setError('WebSocket unavailable. Using REST API for updates.');
             return;
           }
         }
@@ -182,7 +196,6 @@ export function useRealtimePrice(symbols) {
     }
 
     symbolChangeTimeoutRef.current = setTimeout(() => {
-      console.log('Symbol list changed, reconnecting...');
       reconnect();
     }, 1000); // 1 second debounce
 

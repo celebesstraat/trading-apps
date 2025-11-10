@@ -51,7 +51,12 @@ export class AlpacaProvider extends BaseProvider {
    * @returns {Promise<import('../../types/market-data.js').CandleData|null>}
    */
   async fetchCandles(symbol, resolution, from, to) {
-    return this.restClient.fetchCandles(symbol, resolution, from, to);
+    const results = await this.restClient.fetchCandlesBatch([symbol], resolution, from, to);
+    return results[symbol] || null;
+  }
+
+  async fetchCandlesBatch(symbols, resolution, from, to) {
+    return this.restClient.fetchCandlesBatch(symbols, resolution, from, to);
   }
 
   /**

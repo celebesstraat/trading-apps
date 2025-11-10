@@ -100,6 +100,7 @@ export const MARKET_CONFIG = {
 export const HISTORICAL_CONFIG = {
   DAILY_LOOKBACK_DAYS: 250,        // Days of historical data to fetch (increased for 200D SMA)
   FIRST_5M_AVG_DAYS: 20,           // Days to average first 5m volume
+  SMA_5_PERIOD: 5,
   EMA_10_PERIOD: 10,
   EMA_21_PERIOD: 21,
   SMA_50_PERIOD: 50,
@@ -107,6 +108,37 @@ export const HISTORICAL_CONFIG = {
   SMA_100_PERIOD: 100,
   SMA_200_PERIOD: 200,
   ADR_PERIOD: 20,                  // Average Daily Range period (20-Day ADR%)
+};
+
+// VRS (ADR%-Normalized Relative Strength) Configuration
+export const VRS_CONFIG = {
+  BENCHMARK_SYMBOL: 'QQQ',         // Benchmark index to compare against
+  EMA_PERIOD: 12,                  // EMA period for smoothed VRS (12 5m candles)
+  EMA_ALPHA: 2 / 13,               // EMA smoothing factor: 2/(N+1) = 2/13 ≈ 0.1538
+  ADR_PERIOD: 20,                  // 20-Day ADR% for normalization
+  CANDLE_INTERVAL: '5Min',         // 5-minute candle interval for VRS calculation
+  MAX_HISTORY_LENGTH: 50,          // Keep last 50 VRS values for EMA calculation
+  UPDATE_ON_CANDLE_CLOSE: true,    // Only update VRS when 5m candle closes
+
+  // Display configuration for progress bars
+  DISPLAY: {
+    MIN_VALUE: -20,                // Minimum VRS % to display (-20%)
+    MAX_VALUE: 20,                 // Maximum VRS % to display (+20%)
+    CENTER_VALUE: 0,               // Center value for neutral position (0%)
+    SCALE_FACTOR: 100,             // Scale VRS by 100 for percentage display
+    DECIMAL_PLACES: 1,             // Decimal places for display formatting
+  },
+
+  // Color thresholds for progress bars
+  THRESHOLDS: {
+    VERY_NEGATIVE: -10,            // Deep red: <= -10%
+    NEGATIVE: -5,                  // Red: -10% to -5%
+    SLIGHTLY_NEGATIVE: -2,         // Amber: -5% to -2%
+    NEUTRAL_MAX: 2,                // White/neutral: -2% to +2%
+    SLIGHTLY_POSITIVE: 5,          // Light green: +2% to +5%
+    POSITIVE: 10,                  // Green: +5% to +10%
+    VERY_POSITIVE: 20,             // Deep green: >= +10%
+  },
 };
 
 // UI Configuration
