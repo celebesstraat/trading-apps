@@ -17,6 +17,16 @@ export const MARKET_DATA_CONFIG = {
   RATE_LIMIT: 200 // Free tier: 200 calls/min (vs Finnhub's 60/min)
 };
 
+// Debug: Log environment variables (remove in production)
+if (typeof window !== 'undefined') {
+  console.log('=== ENV DEBUG ===');
+  console.log('API_KEY_ID:', import.meta.env.VITE_ALPACA_API_KEY_ID ? `${import.meta.env.VITE_ALPACA_API_KEY_ID.substring(0, 4)}...` : 'NOT SET');
+  console.log('SECRET_KEY:', import.meta.env.VITE_ALPACA_SECRET_KEY ? `${import.meta.env.VITE_ALPACA_SECRET_KEY.substring(0, 4)}...` : 'NOT SET');
+  console.log('DATA_FEED:', import.meta.env.VITE_ALPACA_DATA_FEED);
+  console.log('SANDBOX:', import.meta.env.VITE_ALPACA_SANDBOX);
+  console.log('==================');
+}
+
 // Finnhub API Configuration (for NBBO-quality historical data)
 export const FINNHUB_API_KEY = import.meta.env.VITE_FINNHUB_API_KEY;
 export const FINNHUB_REST_URL = 'https://finnhub.io/api/v1';
