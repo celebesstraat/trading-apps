@@ -1,7 +1,7 @@
 // === DATA MODE ===
 // 'rest' = REST-only (polling, more reliable, ~1-5s latency)
 // 'hybrid' = WebSocket + REST fallback (real-time, <1s latency)
-export const DATA_MODE = 'hybrid'; // Alpaca has much better WebSocket support
+export const DATA_MODE = 'rest'; // Temporarily use REST-only to avoid WebSocket auth issues
 
 // === MOCK DATA MODE ===
 // Set to true to use fake data for visual testing (5M ORB, Today's Move, etc.)

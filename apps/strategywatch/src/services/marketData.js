@@ -16,13 +16,25 @@ let providerInstance = null;
  */
 export function getProvider() {
   if (!providerInstance) {
-    providerInstance = createProvider('alpaca', {
+    const config = {
       apiKeyId: MARKET_DATA_CONFIG.API_KEY_ID,
       secretKey: MARKET_DATA_CONFIG.SECRET_KEY,
       dataFeed: MARKET_DATA_CONFIG.DATA_FEED,
       sandbox: MARKET_DATA_CONFIG.SANDBOX,
       rateLimit: MARKET_DATA_CONFIG.RATE_LIMIT
-    });
+    };
+
+    console.log('=== PROVIDER CONFIG DEBUG ===');
+    console.log('Creating Alpaca provider with config:');
+    console.log('- apiKeyId exists:', !!config.apiKeyId);
+    console.log('- secretKey exists:', !!config.secretKey);
+    console.log('- apiKeyId length:', config.apiKeyId?.length);
+    console.log('- secretKey length:', config.secretKey?.length);
+    console.log('- dataFeed:', config.dataFeed);
+    console.log('- sandbox:', config.sandbox);
+    console.log('================================');
+
+    providerInstance = createProvider('alpaca', config);
   }
 
   return providerInstance;
