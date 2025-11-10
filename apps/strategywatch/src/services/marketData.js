@@ -16,16 +16,13 @@ let providerInstance = null;
  */
 export function getProvider() {
   if (!providerInstance) {
-    const config = {
+    providerInstance = createProvider('alpaca', {
       apiKeyId: MARKET_DATA_CONFIG.API_KEY_ID,
       secretKey: MARKET_DATA_CONFIG.SECRET_KEY,
       dataFeed: MARKET_DATA_CONFIG.DATA_FEED,
       sandbox: MARKET_DATA_CONFIG.SANDBOX,
       rateLimit: MARKET_DATA_CONFIG.RATE_LIMIT
-    };
-
-    
-    providerInstance = createProvider('alpaca', config);
+    });
   }
 
   return providerInstance;

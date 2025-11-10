@@ -25,19 +25,6 @@ export class AlpacaWebSocketClient {
     this.authTimeout = null;
     this.lastMessageTime = null;
     this.heartbeatInterval = null;
-
-    // DEBUG: Log configuration details
-    console.log('🔌 [WebSocket] Alpaca WebSocket Client Configuration:');
-    console.log('- URL:', this.url);
-    console.log('- API Key ID exists:', !!config.apiKeyId);
-    console.log('- API Key ID length:', config.apiKeyId?.length);
-    console.log('- Secret Key exists:', !!config.secretKey);
-    console.log('- Secret Key length:', config.secretKey?.length);
-    console.log('- Data Feed:', config.dataFeed);
-    console.log('- Sandbox:', config.sandbox);
-    console.log('- User Agent:', navigator.userAgent);
-    console.log('- Origin:', window.location.origin);
-    console.log('=====================================');
   }
 
   /**
@@ -46,19 +33,14 @@ export class AlpacaWebSocketClient {
    */
   async connect() {
     if (this.connected || this.ws?.readyState === WebSocket.CONNECTING) {
-      console.log('🔌 [WebSocket] Already connecting or connected');
       return;
     }
 
     this.manualDisconnect = false;
 
-    console.log('🔌 [WebSocket] Starting connection to:', this.url);
-    console.log('🔌 [WebSocket] Attempt:', this.reconnectAttempts + 1);
-
     return new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.url);
-        console.log('🔌 [WebSocket] WebSocket object created');
 
         // Set up event handlers
         this.ws.onopen = () => this.handleOpen(resolve, reject);
@@ -66,10 +48,7 @@ export class AlpacaWebSocketClient {
         this.ws.onerror = (error) => this.handleError(error, reject);
         this.ws.onclose = (event) => this.handleClose(event);
 
-        console.log('🔌 [WebSocket] Event handlers attached');
-
       } catch (error) {
-        console.error('🔌 [WebSocket] Failed to create WebSocket:', error);
         reject(error);
       }
     });
@@ -80,28 +59,16 @@ export class AlpacaWebSocketClient {
    * @private
    */
   handleOpen(resolve, reject) {
-    console.log('🔌 [WebSocket] Connection opened successfully');
-    console.log('🔌 [WebSocket] WebSocket state:', this.ws?.readyState);
-    console.log('🔌 [WebSocket] Protocol:', this.ws?.protocol);
-
     this.connected = true;
 
     // Send authentication within 10 seconds
-    console.log('🔌 [WebSocket] Starting authentication process...');
     this.authenticate()
       .then(() => {
-        console.log('🔌 [WebSocket] Authentication successful!');
         this.reconnectAttempts = 0;
         this.startHeartbeat();
         resolve();
       })
       .catch((error) => {
-        console.error('🔌 [WebSocket] Authentication failed:', error);
-        console.error('🔌 [WebSocket] Error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        });
         this.disconnect();
         reject(error);
       });
@@ -114,40 +81,26 @@ export class AlpacaWebSocketClient {
    */
   async authenticate() {
     return new Promise((resolve, reject) => {
-      console.log('🔌 [WebSocket] Setting up authentication...');
-      console.log('🔌 [WebSocket] Auth timeout:', ALPACA_CONFIG.AUTH_TIMEOUT_MS + 'ms');
-
       // Set authentication timeout
       this.authTimeout = setTimeout(() => {
-        console.error('🔌 [WebSocket] Authentication timeout reached');
         reject(new Error('Authentication timeout'));
       }, ALPACA_CONFIG.AUTH_TIMEOUT_MS);
 
       // Listen for auth response
       const authHandler = (message) => {
-        console.log('🔌 [WebSocket] Auth response received:', message);
-
         if (message.T === 'success' && message.msg === 'authenticated') {
-          console.log('🔌 [WebSocket] ✅ Authentication successful!');
           clearTimeout(this.authTimeout);
           this.authenticated = true;
 
           // Resubscribe to previous symbols if any
           if (this.subscriptions.size > 0) {
-            console.log('🔌 [WebSocket] Resubscribing to', this.subscriptions.size, 'symbols');
             this.resubscribe();
           }
 
           resolve();
         } else if (message.T === 'error') {
-          console.error('🔌 [WebSocket] ❌ Authentication error from Alpaca:');
-          console.error('- Error message:', message.msg);
-          console.error('- Error code:', message.code);
-          console.error('- Full message:', message);
           clearTimeout(this.authTimeout);
           reject(new Error(`Auth error: ${message.msg} (code: ${message.code})`));
-        } else {
-          console.log('🔌 [WebSocket] Non-auth message during auth:', message);
         }
       };
 
@@ -161,16 +114,7 @@ export class AlpacaWebSocketClient {
         secret: this.config.secretKey
       };
 
-      console.log('🔌 [WebSocket] Sending authentication message:');
-      console.log('- Action:', authMsg.action);
-      console.log('- Key exists:', !!authMsg.key);
-      console.log('- Key length:', authMsg.key?.length);
-      console.log('- Secret exists:', !!authMsg.secret);
-      console.log('- Secret length:', authMsg.secret?.length);
-      console.log('- Message size:', JSON.stringify(authMsg).length, 'characters');
-
       this.send(authMsg);
-      console.log('🔌 [WebSocket] Authentication message sent');
     });
   }
 
@@ -330,16 +274,6 @@ export class AlpacaWebSocketClient {
    * @private
    */
   handleError(error, reject) {
-    console.error('🔌 [WebSocket] ❌ WebSocket error occurred:');
-    console.error('- Error object:', error);
-    console.error('- Error type:', typeof error);
-    console.error('- Error message:', error?.message || 'No message');
-    console.error('- WebSocket readyState:', this.ws?.readyState);
-    console.error('- WebSocket URL:', this.url);
-    console.error('- Connected:', this.connected);
-    console.error('- Authenticated:', this.authenticated);
-    console.error('- Timestamp:', new Date().toISOString());
-
     if (reject) {
       reject(error);
     }
@@ -350,21 +284,12 @@ export class AlpacaWebSocketClient {
    * @private
    */
   handleClose(event) {
-    console.log('🔌 [WebSocket] Connection closed');
-    console.log('- Code:', event.code);
-    console.log('- Reason:', event.reason);
-    console.log('- Was clean:', event.wasClean);
-    console.log('- Connected before close:', this.connected);
-    console.log('- Authenticated before close:', this.authenticated);
-    console.log('- Timestamp:', new Date().toISOString());
-
     this.connected = false;
     this.authenticated = false;
     this.stopHeartbeat();
 
     // Auto-reconnect unless manually disconnected
     if (!this.manualDisconnect) {
-      console.log('🔌 [WebSocket] Scheduling reconnection...');
       this.scheduleReconnect();
     }
   }

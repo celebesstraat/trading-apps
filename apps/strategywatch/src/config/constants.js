@@ -1,7 +1,7 @@
 // === DATA MODE ===
 // 'rest' = REST-only (polling, more reliable, ~1-5s latency)
 // 'hybrid' = WebSocket + REST fallback (real-time, <1s latency)
-export const DATA_MODE = 'hybrid'; // Temporarily enable WebSocket for debugging
+export const DATA_MODE = 'hybrid'; // Alpaca has much better WebSocket support
 
 // === MOCK DATA MODE ===
 // Set to true to use fake data for visual testing (5M ORB, Today's Move, etc.)
@@ -12,22 +12,11 @@ export const MARKET_DATA_CONFIG = {
   PROVIDER: 'alpaca',
   API_KEY_ID: import.meta.env.VITE_ALPACA_API_KEY_ID,
   SECRET_KEY: import.meta.env.VITE_ALPACA_SECRET_KEY,
-  DATA_FEED: (import.meta.env.VITE_ALPACA_DATA_FEED || 'iex').trim(), // 'iex' (free) or 'sip' (paid)
+  DATA_FEED: import.meta.env.VITE_ALPACA_DATA_FEED || 'iex', // 'iex' (free) or 'sip' (paid)
   SANDBOX: import.meta.env.VITE_ALPACA_SANDBOX === 'true',
   RATE_LIMIT: 200 // Free tier: 200 calls/min (vs Finnhub's 60/min)
 };
 
-// Debug: Log environment variables in production
-if (typeof window !== 'undefined') {
-  console.log('=== ENV DEBUG ===');
-  console.log('API_KEY_ID exists:', !!import.meta.env.VITE_ALPACA_API_KEY_ID);
-  console.log('SECRET_KEY exists:', !!import.meta.env.VITE_ALPACA_SECRET_KEY);
-  console.log('API_KEY_ID length:', import.meta.env.VITE_ALPACA_API_KEY_ID?.length);
-  console.log('SECRET_KEY length:', import.meta.env.VITE_ALPACA_SECRET_KEY?.length);
-  console.log('DATA_FEED:', import.meta.env.VITE_ALPACA_DATA_FEED);
-  console.log('SANDBOX:', import.meta.env.VITE_ALPACA_SANDBOX);
-  console.log('==================');
-}
 
 
 // Finnhub API Configuration (for NBBO-quality historical data)
