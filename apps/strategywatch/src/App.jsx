@@ -129,7 +129,32 @@ VITE_ALPACA_DATA_FEED=iex
       />
 
       <main className="main-content">
-    
+
+        {/* WebSocket Debug Panel */}
+        <div style={{
+          background: '#1a1a1a',
+          color: '#fff',
+          padding: '15px',
+          margin: '10px 0',
+          fontSize: '11px',
+          fontFamily: 'monospace',
+          border: '2px solid #333',
+          borderRadius: '5px'
+        }}>
+          <strong style={{color: '#ffa500'}}>🔌 WEBSOCKET DEBUG PANEL</strong><br/>
+          <div style={{marginTop: '8px'}}>
+            <strong>Connection Status:</strong> {connected ? '✅ Connected' : '❌ Disconnected'}<br/>
+            <strong>Authentication:</strong> {error ? '❌ Failed' : (connected ? '✅ Success' : '⏳ Pending')}<br/>
+            <strong>Error:</strong> {error || 'None'}<br/>
+            <strong>Data Mode:</strong> {import.meta.env.VITE_DATA_MODE || 'hybrid'}<br/>
+            <strong>Environment:</strong> {window.location.origin}<br/>
+            <strong>Timestamp:</strong> {new Date().toLocaleTimeString()}
+          </div>
+          <div style={{marginTop: '8px', fontSize: '10px', color: '#888'}}>
+            Open browser console for detailed WebSocket logs (🔌 [WebSocket])
+          </div>
+        </div>
+
         {!marketOpen && (
           <div className="market-closed-banner">
             Market is currently closed. Displaying last known prices.

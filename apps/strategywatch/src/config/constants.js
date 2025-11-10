@@ -1,7 +1,7 @@
 // === DATA MODE ===
 // 'rest' = REST-only (polling, more reliable, ~1-5s latency)
 // 'hybrid' = WebSocket + REST fallback (real-time, <1s latency)
-export const DATA_MODE = 'rest'; // Use REST-only for better reliability
+export const DATA_MODE = 'hybrid'; // Temporarily enable WebSocket for debugging
 
 // === MOCK DATA MODE ===
 // Set to true to use fake data for visual testing (5M ORB, Today's Move, etc.)
