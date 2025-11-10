@@ -24,9 +24,9 @@ export function DataProvider({ children }) {
   // Market hours tracking
   const { marketOpen, currentTime, marketStatus, isHoliday, isWeekend, isLoading: isCalendarLoading } = useMarketHours();
 
-  // WebSocket connection for real-time prices (only when not in mock mode)
+  // WebSocket connection for real-time prices (only when in hybrid mode and not in mock mode)
   const { prices: wsPrices, connected, error: wsError } = useRealtimePrice(
-    MOCK_DATA_MODE ? [] : WATCHLIST
+    MOCK_DATA_MODE || DATA_MODE === 'rest' ? [] : WATCHLIST
   );
 
   // State
