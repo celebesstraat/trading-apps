@@ -24,16 +24,7 @@ export function getProvider() {
       rateLimit: MARKET_DATA_CONFIG.RATE_LIMIT
     };
 
-    console.log('=== PROVIDER CONFIG DEBUG ===');
-    console.log('Creating Alpaca provider with config:');
-    console.log('- apiKeyId exists:', !!config.apiKeyId);
-    console.log('- secretKey exists:', !!config.secretKey);
-    console.log('- apiKeyId length:', config.apiKeyId?.length);
-    console.log('- secretKey length:', config.secretKey?.length);
-    console.log('- dataFeed:', config.dataFeed);
-    console.log('- sandbox:', config.sandbox);
-    console.log('================================');
-
+    
     providerInstance = createProvider('alpaca', config);
   }
 
