@@ -1,10 +1,10 @@
-import { useMemo, useRef, useEffect, useState } from 'react';
+import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { formatPrice, formatTime } from '../utils/formatters';
 import { ORB_THRESHOLDS } from '../config/constants';
 import { announce, toggleTickerMute, isTickerMuted } from '../utils/voiceAlerts';
 import { formatRVol, getRVolColor, getRVolTooltip, getTodayMoveProgressWidth, formatVRS } from '../utils/rvolCalculations';
 import { checkPriceProximityToMA } from '../services/calculations';
-import { useData } from '../context/DataContext';
+import { useData } from '../hooks/useData';
 import RVolProgress from './RVolProgress';
 import VRSProgress from './VRSProgress';
 import './TickerRow.css';
@@ -19,7 +19,7 @@ import './TickerRow.css';
  * @param {object} props.movingAverages Moving averages {sma5, ema10, ema21, sma50, sma200}
  * @param {object} props.orb5mData 5m ORB data {candle, historicalCandles, tier}
  * @param {object} props.rvolData RVol data {rvol, currentCumulative, avgCumulative, error}
- * @param {object} props.vrsData VRS data {vrs5m, vrsEma12, timestamp}
+ * @param {object} props.vrsData VRS data {vrs1m, vrs5m, vrs15m, timestamp}
  */
 export function TickerRow({
   ticker,
@@ -33,8 +33,8 @@ export function TickerRow({
   const timestamp = priceData?.timestamp;
   const previousClose = priceData?.previousClose;
 
-  // Get global mute state and news functions from context
-  const { globalMuted, getUnreadNewsCountForTicker, loading } = useData();
+  // Get global mute state and market status from context
+  const { globalMuted, loading, marketOpen } = useData();
 
   // Track muted state for this ticker
   const [isTickerMutedState, setIsTickerMutedState] = useState(() => isTickerMuted(ticker));
@@ -141,16 +141,7 @@ export function TickerRow({
     window.open(`https://www.tradingview.com/chart/?symbol=${ticker}`, '_blank');
   };
 
-  // Get unread news count for this ticker
-  const unreadNewsCount = getUnreadNewsCountForTicker(ticker);
-
-  // Handle news icon click (open global news alert)
-  const handleNewsIconClick = () => {
-    // This will trigger the global news alert to open
-    // We'll use a custom event to communicate with the Header component
-    window.dispatchEvent(new CustomEvent('openNewsAlert', { detail: { ticker } }));
-  };
-
+  
   // Get ADR% display (raw percentage value, always white font)
   const getADRDisplay = (adrValue) => {
     if (!adrValue) {
@@ -195,10 +186,10 @@ export function TickerRow({
     const closeLowQ = closePos <= ORB_THRESHOLDS.LOWER_QUANTILE; // Close ≤ 20% of range
     const redOK = !isGreenCandle;     // Require red candle
 
-    // Bullish breakout: price >= ORB high
-    const bullishBreakout = price && high && price >= high;
-    // Bearish breakout: price <= ORB low
-    const bearishBreakout = price && low && price <= low;
+    // Bullish breakout: price >= ORB high (only during market hours for real-time relevance)
+    const bullishBreakout = marketOpen && price && high && price >= high;
+    // Bearish breakout: price <= ORB low (only during market hours for real-time relevance)
+    const bearishBreakout = marketOpen && price && low && price <= low;
 
     // Determine traffic light color
     let className = '';
@@ -226,7 +217,7 @@ export function TickerRow({
       hasBorder = bearishBreakout;
       tooltip = `Very Bearish: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER2_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '',
+        text: 'T2',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BEARISH BREAKOUT!` : tooltip,
@@ -239,7 +230,7 @@ export function TickerRow({
       hasBorder = bearishBreakout;
       tooltip = `Bearish: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '',
+        text: 'T1',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BEARISH BREAKOUT!` : tooltip,
@@ -252,7 +243,7 @@ export function TickerRow({
       hasBorder = bullishBreakout;
       tooltip = `Very Strong: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER2_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '',
+        text: 'T2',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BULLISH BREAKOUT!` : tooltip,
@@ -265,7 +256,7 @@ export function TickerRow({
       hasBorder = bullishBreakout;
       tooltip = `Strong: RVOL ${volumeMultiplier.toFixed(2)}x ≥ ${ORB_THRESHOLDS.TIER1_VOLUME_MULTIPLIER}x | Open ${(openPos*100).toFixed(0)}% ≤ ${(ORB_THRESHOLDS.LOWER_QUANTILE*100).toFixed(0)}% | Close ${(closePos*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.UPPER_QUANTILE*100).toFixed(0)}% | Body ${(bodyRatio*100).toFixed(0)}% ≥ ${(ORB_THRESHOLDS.MIN_BODY_RATIO*100).toFixed(0)}%`;
       return {
-        text: '',
+        text: 'T1',
         className,
         hasBorder,
         tooltip: hasBorder ? `${tooltip} - BULLISH BREAKOUT!` : tooltip,
@@ -289,7 +280,7 @@ export function TickerRow({
         tier2Met: false
       };
     }
-  }, [orb5mData, price]); // Dependencies for memoization
+  }, [orb5mData, price, marketOpen]); // Dependencies for memoization
 
   // Handle voice announcements with debouncing (moved outside useMemo)
   useEffect(() => {
@@ -471,10 +462,39 @@ export function TickerRow({
   // orb5mDisplay is now memoized above
   const todayADRDisplay = getTodayADRDisplay(movingAverages?.adr20);
 
-  const isStale = loading && priceData;
+  // Hook for current time to avoid impure function calls during render
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Modern stale detection: Check if data is actually old (more than 30 seconds)
+  const isStale = useMemo(() => {
+    if (!priceData?.timestamp) return false;
+
+    try {
+      const dataAge = currentTime - new Date(priceData.timestamp).getTime();
+      const STALE_THRESHOLD_MS = 30000; // 30 seconds
+
+      // Guard against negative ages (invalid timestamps)
+      if (dataAge < 0) return false;
+
+      // During initial loading, don't mark as stale unless data is very old
+      if (loading) {
+        return dataAge > STALE_THRESHOLD_MS * 2; // 60 seconds during loading
+      }
+
+      // After loading, mark as stale if data is older than threshold
+      return dataAge > STALE_THRESHOLD_MS;
+    } catch (error) {
+      console.warn(`Invalid timestamp for ${ticker}:`, priceData.timestamp);
+      return false;
+    }
+  }, [currentTime, priceData?.timestamp, loading]);
 
   return (
-    <tr className="ticker-row" data-stale={isStale}>
+    <tr className="ticker-row" data-stale={isStale} data-loading={loading}>
       {/* Ticker with control icons underneath */}
       <td className="ticker-cell">
         <div className="ticker-content-vertical">
@@ -488,17 +508,6 @@ export function TickerRow({
             </span>
           </div>
           <div className="ticker-controls">
-            {unreadNewsCount > 0 && (
-              <button
-                className="news-icon-inline"
-                onClick={handleNewsIconClick}
-                title={`${unreadNewsCount} unread news item${unreadNewsCount !== 1 ? 's' : ''} for ${ticker}`}
-                aria-label={`${unreadNewsCount} unread news items`}
-              >
-                📰
-                <span className="news-badge-inline">{unreadNewsCount}</span>
-              </button>
-            )}
             <button
               className={`mute-button-inline ${effectivelyMuted ? 'muted' : ''} ${globalMuted ? 'global-muted' : ''}`}
               onClick={handleMuteToggle}
@@ -543,10 +552,23 @@ export function TickerRow({
         </span>
       </td>
 
-      {/* VRS 5m */}
+      {/* VRS 1m */}
       <td className="vrs-progress-cell group-separator">
         <VRSProgress
-          vrs={vrsData?.vrs5m}
+          vrs={vrsData?.vrs1m !== null && vrsData?.vrs1m !== undefined ? vrsData.vrs1m * 100 : null}
+          tooltip={vrsData?.vrs1m !== null && vrsData?.vrs1m !== undefined
+            ? `VRS (1m): ${formatVRS(vrsData.vrs1m * 100)}\n${vrsData.vrs1m * 100 > 0 ? 'Outperforming' : 'Underperforming'} QQQ (1-min granularity)\n\nClick to open in TradingView`
+            : 'VRS (1m) data unavailable (waiting for 1m candle data)\n\nClick to open in TradingView'
+          }
+          onClick={handlePriceClick}
+          clickable={true}
+        />
+      </td>
+
+      {/* VRS 5m */}
+      <td className="vrs-progress-cell">
+        <VRSProgress
+          vrs={vrsData?.vrs5m !== null && vrsData?.vrs5m !== undefined ? vrsData.vrs5m * 100 : null}
           tooltip={vrsData?.vrs5m !== null && vrsData?.vrs5m !== undefined
             ? `VRS (5m): ${formatVRS(vrsData.vrs5m * 100)}\n${vrsData.vrs5m * 100 > 0 ? 'Outperforming' : 'Underperforming'} QQQ (ADR%-normalized)\n\nClick to open in TradingView`
             : 'VRS data unavailable (waiting for 5m candle data)\n\nClick to open in TradingView'
@@ -556,13 +578,13 @@ export function TickerRow({
         />
       </td>
 
-      {/* VRS EMA12 */}
+      {/* VRS 15m */}
       <td className="vrs-progress-cell">
         <VRSProgress
-          vrs={vrsData?.vrsEma12}
-          tooltip={vrsData?.vrsEma12 !== null && vrsData?.vrsEma12 !== undefined
-            ? `EMA₁₂(VRS): ${formatVRS(vrsData.vrsEma12 * 100)}\nSmoothed ${vrsData.vrsEma12 * 100 > 0 ? 'positive' : 'negative'} momentum vs QQQ\n\nClick to open in TradingView`
-            : 'VRS EMA data unavailable (need 12 periods)\n\nClick to open in TradingView'
+          vrs={vrsData?.vrs15m !== null && vrsData?.vrs15m !== undefined ? vrsData.vrs15m * 100 : null}
+          tooltip={vrsData?.vrs15m !== null && vrsData?.vrs15m !== undefined
+            ? `VRS (15m): ${formatVRS(vrsData.vrs15m * 100)}\n${vrsData.vrs15m * 100 > 0 ? 'Outperforming' : 'Underperforming'} QQQ (15-min momentum)\n\nClick to open in TradingView`
+            : 'VRS (15m) data unavailable (waiting for 15m candle data)\n\nClick to open in TradingView'
           }
           onClick={handlePriceClick}
           clickable={true}
