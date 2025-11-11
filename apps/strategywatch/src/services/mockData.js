@@ -66,45 +66,56 @@ function generateMockMovingAverages(price, index) {
  */
 function generateMockVRSData(index, _price, _adr20) {
   // Create varied VRS scenarios for testing progress bar visualization
+  // Note: vrs15m will be interpolated between vrs5m and vrs1m, so we only need vrs5m as base
   const vrsScenarios = [
     // Very strong outperformance (+15% to +20%)
-    () => ({ vrs5m: 0.15 + Math.random() * 0.05, vrsEma12: 0.12 + Math.random() * 0.06 }),
+    () => ({ vrs5m: 0.15 + Math.random() * 0.05 }),
 
     // Strong outperformance (+8% to +15%)
-    () => ({ vrs5m: 0.08 + Math.random() * 0.07, vrsEma12: 0.06 + Math.random() * 0.07 }),
+    () => ({ vrs5m: 0.08 + Math.random() * 0.07 }),
 
     // Moderate outperformance (+3% to +8%)
-    () => ({ vrs5m: 0.03 + Math.random() * 0.05, vrsEma12: 0.02 + Math.random() * 0.06 }),
+    () => ({ vrs5m: 0.03 + Math.random() * 0.05 }),
 
     // Slight outperformance (+1% to +3%)
-    () => ({ vrs5m: 0.01 + Math.random() * 0.02, vrsEma12: 0.005 + Math.random() * 0.02 }),
+    () => ({ vrs5m: 0.01 + Math.random() * 0.02 }),
 
     // Neutral (-2% to +2%)
-    () => ({ vrs5m: (Math.random() - 0.5) * 0.04, vrsEma12: (Math.random() - 0.5) * 0.03 }),
+    () => ({ vrs5m: (Math.random() - 0.5) * 0.04 }),
 
     // Slight underperformance (-3% to -1%)
-    () => ({ vrs5m: -0.03 - Math.random() * 0.02, vrsEma12: -0.02 - Math.random() * 0.02 }),
+    () => ({ vrs5m: -0.03 - Math.random() * 0.02 }),
 
     // Moderate underperformance (-8% to -3%)
-    () => ({ vrs5m: -0.08 - Math.random() * 0.05, vrsEma12: -0.06 - Math.random() * 0.06 }),
+    () => ({ vrs5m: -0.08 - Math.random() * 0.05 }),
 
     // Strong underperformance (-15% to -8%)
-    () => ({ vrs5m: -0.15 - Math.random() * 0.07, vrsEma12: -0.12 - Math.random() * 0.08 }),
+    () => ({ vrs5m: -0.15 - Math.random() * 0.07 }),
 
     // Very strong underperformance (-20% to -15%)
-    () => ({ vrs5m: -0.20 - Math.random() * 0.05, vrsEma12: -0.18 - Math.random() * 0.07 }),
+    () => ({ vrs5m: -0.20 - Math.random() * 0.05 }),
 
     // Extreme outliers for testing boundaries (+25% and -25%)
-    () => ({ vrs5m: 0.25 + Math.random() * 0.05, vrsEma12: 0.20 + Math.random() * 0.08 }),
-    () => ({ vrs5m: -0.25 - Math.random() * 0.05, vrsEma12: -0.20 - Math.random() * 0.08 })
+    () => ({ vrs5m: 0.25 + Math.random() * 0.05 }),
+    () => ({ vrs5m: -0.25 - Math.random() * 0.05 })
   ];
 
   const scenario = vrsScenarios[index % vrsScenarios.length];
   const vrsData = scenario();
 
+  // Generate vrs1m with more variation (1m is more volatile than 5m)
+  const vrs1mVariation = (Math.random() - 0.5) * 0.04; // ±2% variation
+  const vrs1m = vrsData.vrs5m + vrs1mVariation;
+
+  // Generate vrs15m between vrs5m and vrs1m, but closer to vrs5m (longer timeframe, less volatile)
+  // 15m should be about 20-40% of the way from vrs5m toward vrs1m
+  const mediumTimeframeFactor = 0.2 + Math.random() * 0.2; // 0.2 to 0.4
+  const vrs15m = vrsData.vrs5m + (vrs1m - vrsData.vrs5m) * mediumTimeframeFactor;
+
   return {
+    vrs1m: Number(vrs1m.toFixed(4)),
     vrs5m: Number(vrsData.vrs5m.toFixed(4)),
-    vrsEma12: Number(vrsData.vrsEma12.toFixed(4)),
+    vrs15m: Number(vrs15m.toFixed(4)),
     timestamp: Date.now()
   };
 }

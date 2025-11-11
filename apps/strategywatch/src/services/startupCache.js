@@ -1,7 +1,7 @@
 import { get, set, del } from 'idb-keyval';
 
 // Cache key with version to invalidate old caches when structure changes
-const CACHE_VERSION = '3'; // Increment this to invalidate old caches
+const CACHE_VERSION = '4'; // Increment this to invalidate old caches (added rvolData)
 const CACHE_KEY = `strategywatch-startup-data-v${CACHE_VERSION}`;
 
 /**

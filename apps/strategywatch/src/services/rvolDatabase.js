@@ -1,12 +1,12 @@
 /**
  * IndexedDB wrapper for storing historical 5-minute candle data for RVol calculations
- * Stores 20 days of 5m candles per ticker for efficient local access
+ * Stores 30 days of 5m candles per ticker for efficient local access
  */
 
 const DB_NAME = 'strategywatch-rvol-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'candles';
-const MAX_DAYS = 20; // Keep last 20 trading days
+const MAX_DAYS = 30; // Keep last 30 trading days
 
 /**
  * Initialize IndexedDB database

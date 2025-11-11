@@ -37,6 +37,12 @@ export function useRealtimePrice(symbols) {
    * Handle price updates from WebSocket
    */
   const handlePriceUpdate = useCallback((update) => {
+    // Only process trade messages with valid prices
+    // Ignore quote messages (bidPrice/askPrice) and bar messages (open/high/low/close)
+    if (update.type !== 'trade' || typeof update.price !== 'number' || isNaN(update.price)) {
+      return;
+    }
+
     setPrices(prev => ({
       ...prev,
       [update.symbol]: {
@@ -76,13 +82,25 @@ export function useRealtimePrice(symbols) {
         console.warn('Rate limit hit. Using moderate backoff...');
         reconnectAttemptsRef.current += 1; // Only increment by 1
         setError('Rate limit exceeded. Will retry...');
-      } else if (err.message?.includes('401') || err.message?.includes('402')) {
-        console.error('Authentication error. Check API credentials.');
-        setError('Authentication failed. Check API credentials.');
+      } else if (err.message?.includes('401') || err.message?.includes('402') || err.message?.includes('Not authenticated')) {
+        console.error('Authentication error. Check API credentials. Falling back to REST API.');
+        setError('WebSocket authentication failed. Using REST API fallback.');
         reconnectAttemptsRef.current = 10; // Skip reconnection for auth errors
+
+        // Enable REST API fallback mode
+        if (typeof window !== 'undefined') {
+          window.websocketFallback = true;
+        }
       } else {
-        console.error('Connection error:', err);
-        setError(err.message);
+        console.error('WebSocket connection error:', err);
+        setError(`WebSocket failed: ${err.message}. Using REST API fallback.`);
+
+        // For other errors, also enable fallback after a few attempts
+        if (reconnectAttemptsRef.current >= 3) {
+          if (typeof window !== 'undefined') {
+            window.websocketFallback = true;
+          }
+        }
       }
       setConnected(false);
       // The reconnection will be handled by the useEffect below

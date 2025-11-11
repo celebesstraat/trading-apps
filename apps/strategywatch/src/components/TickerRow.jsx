@@ -463,14 +463,14 @@ export function TickerRow({
   const todayADRDisplay = getTodayADRDisplay(movingAverages?.adr20);
 
   // Hook for current time to avoid impure function calls during render
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   // Modern stale detection: Check if data is actually old (more than 30 seconds)
-  const isStale = useMemo(() => {
+  const isStale = (() => {
     if (!priceData?.timestamp) return false;
 
     try {
@@ -491,7 +491,7 @@ export function TickerRow({
       console.warn(`Invalid timestamp for ${ticker}:`, priceData.timestamp);
       return false;
     }
-  }, [currentTime, priceData?.timestamp, loading]);
+  })();
 
   return (
     <tr className="ticker-row" data-stale={isStale} data-loading={loading}>

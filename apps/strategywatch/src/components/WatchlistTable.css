@@ -39,6 +39,18 @@
   color: var(--text-primary);
 }
 
+/* Group header styling for multi-row headers */
+.watchlist-table th.group-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+/* VRS sub-headers */
+.watchlist-table th.vrs-subheader {
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
+
 .watchlist-table td {
   padding: 8px 16px;
   border-bottom: 1px solid var(--border);

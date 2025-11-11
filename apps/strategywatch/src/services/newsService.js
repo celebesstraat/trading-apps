@@ -10,11 +10,15 @@ export class NewsService {
     this.reconnectDelay = 5000; // 5 seconds
     this.isConnected = false;
     this.heartbeatInterval = null;
+    this.intentionalDisconnect = false; // Track if disconnect was intentional
   }
 
   connect() {
     try {
       console.log('📰 Connecting to Alpaca news WebSocket...');
+
+      // Reset intentional disconnect flag for new connection
+      this.intentionalDisconnect = false;
 
       // Alpaca news WebSocket endpoint
       const wsUrl = 'wss://stream.data.alpaca.markets/v1beta1/news';
@@ -61,11 +65,13 @@ export class NewsService {
         this.isConnected = false;
         this.stopHeartbeat();
 
-        // Attempt to reconnect
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        // Only attempt to reconnect if the disconnect was NOT intentional
+        if (!this.intentionalDisconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
           console.log(`🔄 Reconnecting to news WebSocket (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
           setTimeout(() => this.connect(), this.reconnectDelay);
+        } else if (this.intentionalDisconnect) {
+          console.log('📰 News WebSocket closed intentionally (no reconnect)');
         } else {
           console.error('❌ Max reconnection attempts reached for news WebSocket');
         }
@@ -105,7 +111,7 @@ export class NewsService {
 
   parseNewsItem(data) {
     try {
-      console.log('📰 Raw news item received:', data);
+      // Filtering happens in DataContext callback - no need to log all items
       const parsedItem = {
         id: data.id,
         headline: data.headline,
@@ -168,11 +174,17 @@ export class NewsService {
   }
 
   disconnect() {
+    // Mark as intentional disconnect to prevent reconnection attempts
+    this.intentionalDisconnect = true;
     this.isConnected = false;
     this.stopHeartbeat();
 
     if (this.ws) {
-      this.ws.close();
+      // Check if WebSocket is still connecting to avoid "closed before connection" error
+      // This commonly happens in React StrictMode development
+      if (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN) {
+        this.ws.close();
+      }
       this.ws = null;
     }
 

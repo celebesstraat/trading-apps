@@ -224,25 +224,37 @@
 /* Light green for Bullish Tier 1 criteria met */
 .orb-cell.orb-light-green .orb-indicator {
   background-color: #9CCC65; /* Clear light green - much different from dark */
-  color: transparent;
+  color: rgba(255, 255, 255, 0.85); /* Lighter white for T1 */
+  font-weight: 600; /* Medium bold for T1 */
+  font-size: 12px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5); /* Lighter shadow for T1 */
 }
 
 /* Dark green for Bullish Tier 2 criteria met */
 .orb-cell.orb-dark-green .orb-indicator {
   background-color: #2E7D32; /* Deep forest green - very distinct */
-  color: transparent;
+  color: #ffffff; /* Pure white for T2 */
+  font-weight: 800; /* Extra bold for T2 */
+  font-size: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); /* Stronger shadow for T2 */
 }
 
 /* Light red for Bearish Tier 1 criteria met */
 .orb-cell.orb-light-red .orb-indicator {
   background-color: #EF5350; /* Clear light red */
-  color: transparent;
+  color: rgba(255, 255, 255, 0.85); /* Lighter white for T1 */
+  font-weight: 600; /* Medium bold for T1 */
+  font-size: 12px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5); /* Lighter shadow for T1 */
 }
 
 /* Dark red for Bearish Tier 2 criteria met */
 .orb-cell.orb-dark-red .orb-indicator {
   background-color: #C62828; /* Deep dark red - very distinct */
-  color: transparent;
+  color: #ffffff; /* Pure white for T2 */
+  font-weight: 800; /* Extra bold for T2 */
+  font-size: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); /* Stronger shadow for T2 */
 }
 
 /* Ensure indicator is visible even when empty */

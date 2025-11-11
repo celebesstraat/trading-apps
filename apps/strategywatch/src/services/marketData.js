@@ -504,17 +504,28 @@ export async function fetchTodayIntradayCandles(symbol) {
       return [];
     }
 
-    // Transform to simple array format
+    // Transform to simple array format and filter to market hours only
     const result = [];
     for (let i = 0; i < candles.timestamps.length; i++) {
-      result.push({
-        timestamp: candles.timestamps[i],
-        volume: candles.volume[i],
-        open: candles.open[i],
-        high: candles.high[i],
-        low: candles.low[i],
-        close: candles.close[i]
-      });
+      const candleTime = new Date(candles.timestamps[i]);
+      const etHour = parseInt(candleTime.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }));
+      const etMinute = parseInt(candleTime.toLocaleString('en-US', { timeZone: 'America/New_York', minute: '2-digit' }));
+
+      // Only include market hours (9:30 AM - 4:00 PM ET) - exclude pre-market candles
+      const isMarketHours =
+        (etHour > 9 || (etHour === 9 && etMinute >= 30)) &&
+        (etHour < 16);
+
+      if (isMarketHours) {
+        result.push({
+          timestamp: candles.timestamps[i],
+          volume: candles.volume[i],
+          open: candles.open[i],
+          high: candles.high[i],
+          low: candles.low[i],
+          close: candles.close[i]
+        });
+      }
     }
 
     // Sort by timestamp (should already be sorted, but ensure it)
@@ -537,32 +548,47 @@ export async function disconnect() {
 }
 
 /**
- * Fetches today's 5-minute candles for multiple symbols (for RVol calculation)
+ * Fetches today's intraday candles for multiple symbols (for RVol/VRS calculation)
  * @param {string[]} symbols - Array of stock tickers
+ * @param {string} interval - Candle interval ('1Min', '5Min', etc.) - defaults to '5Min'
  * @returns {Promise<Object>} Map of symbol -> Array of { timestamp, volume, open, high, low, close }
  */
-export async function fetchTodayIntradayCandlesBatch(symbols) {
+export async function fetchTodayIntradayCandlesBatch(symbols, interval = '5Min') {
   try {
     const marketOpenTime = getTodayMarketOpenTimestamp();
     const now = Date.now();
     const provider = getProvider();
 
+    // Convert interval format ('1Min' -> '1', '5Min' -> '5')
+    const intervalMinutes = interval.replace('Min', '');
+
     // Fetch candles in a single batch
-    const batchCandles = await provider.fetchCandlesBatch(symbols, '5', marketOpenTime, now);
+    const batchCandles = await provider.fetchCandlesBatch(symbols, intervalMinutes, marketOpenTime, now);
 
     const results = {};
     for (const [symbol, candles] of Object.entries(batchCandles)) {
       if (candles && candles.close && candles.close.length > 0) {
         const result = [];
         for (let i = 0; i < candles.timestamps.length; i++) {
-          result.push({
-            timestamp: candles.timestamps[i],
-            volume: candles.volume[i],
-            open: candles.open[i],
-            high: candles.high[i],
-            low: candles.low[i],
-            close: candles.close[i],
-          });
+          const candleTime = new Date(candles.timestamps[i]);
+          const etHour = parseInt(candleTime.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false }));
+          const etMinute = parseInt(candleTime.toLocaleString('en-US', { timeZone: 'America/New_York', minute: '2-digit' }));
+
+          // Only include market hours (9:30 AM - 4:00 PM ET) - exclude pre-market candles
+          const isMarketHours =
+            (etHour > 9 || (etHour === 9 && etMinute >= 30)) &&
+            (etHour < 16);
+
+          if (isMarketHours) {
+            result.push({
+              timestamp: candles.timestamps[i],
+              volume: candles.volume[i],
+              open: candles.open[i],
+              high: candles.high[i],
+              low: candles.low[i],
+              close: candles.close[i],
+            });
+          }
         }
         // Sort just in case the provider doesn't guarantee it
         results[symbol] = result.sort((a, b) => a.timestamp - b.timestamp);

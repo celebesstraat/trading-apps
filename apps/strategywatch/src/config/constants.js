@@ -13,7 +13,7 @@ export const MARKET_DATA_CONFIG = {
   API_KEY_ID: import.meta.env.VITE_ALPACA_API_KEY_ID,
   SECRET_KEY: import.meta.env.VITE_ALPACA_SECRET_KEY,
   DATA_FEED: import.meta.env.VITE_ALPACA_DATA_FEED || 'iex', // 'iex' (free) or 'sip' (paid)
-  SANDBOX: import.meta.env.VITE_ALPACA_SANDBOX === 'true',
+  SANDBOX: false, // Market Data API uses same endpoint for both paper and live keys
   RATE_LIMIT: 200 // Free tier: 200 calls/min (vs Finnhub's 60/min)
 };
 
@@ -101,7 +101,7 @@ export const MARKET_CONFIG = {
 // Historical Data Configuration
 export const HISTORICAL_CONFIG = {
   DAILY_LOOKBACK_DAYS: 250,        // Days of historical data to fetch (increased for 200D SMA)
-  FIRST_5M_AVG_DAYS: 20,           // Days to average first 5m volume
+  FIRST_5M_AVG_DAYS: 30,           // Days to average first 5m volume
   SMA_5_PERIOD: 5,
   EMA_10_PERIOD: 10,
   EMA_21_PERIOD: 21,
@@ -115,8 +115,8 @@ export const HISTORICAL_CONFIG = {
 // VRS (ADR%-Normalized Relative Strength) Configuration
 export const VRS_CONFIG = {
   BENCHMARK_SYMBOL: 'QQQ',         // Benchmark index to compare against
-  EMA_PERIOD: 12,                  // EMA period for smoothed VRS (12 5m candles)
-  EMA_ALPHA: 2 / 13,               // EMA smoothing factor: 2/(N+1) = 2/13 ≈ 0.1538
+  EMA_PERIOD: 10,                  // EMA period for smoothed VRS (10 1m candles)
+  EMA_ALPHA: 2 / 11,               // EMA smoothing factor: 2/(N+1) = 2/11 ≈ 0.1818
   ADR_PERIOD: 20,                  // 20-Day ADR% for normalization
   CANDLE_INTERVAL: '5Min',         // 5-minute candle interval for VRS calculation
   MAX_HISTORY_LENGTH: 50,          // Keep last 50 VRS values for EMA calculation

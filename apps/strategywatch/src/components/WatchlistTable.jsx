@@ -22,7 +22,7 @@ export function WatchlistTable({
   rvolDataMap = {},
   vrsDataMap = {}
 }) {
-  const [sortColumn, setSortColumn] = useState('10d'); // Default sort by 10D EMA
+  const [sortColumn, setSortColumn] = useState('ticker'); // Default sort by ticker to see all stocks
   const [sortDirection, setSortDirection] = useState('desc');
 
   // Handle column header click for sorting
@@ -77,13 +77,17 @@ export function WatchlistTable({
           aValue = rvolDataMap[a]?.rvol ?? -Infinity;
           bValue = rvolDataMap[b]?.rvol ?? -Infinity;
           break;
+        case 'vrs1m':
+          aValue = vrsDataMap[a]?.vrs1m ?? -Infinity;
+          bValue = vrsDataMap[b]?.vrs1m ?? -Infinity;
+          break;
         case 'vrs5m':
           aValue = vrsDataMap[a]?.vrs5m ?? -Infinity;
           bValue = vrsDataMap[b]?.vrs5m ?? -Infinity;
           break;
-        case 'vrsEma12':
-          aValue = vrsDataMap[a]?.vrsEma12 ?? -Infinity;
-          bValue = vrsDataMap[b]?.vrsEma12 ?? -Infinity;
+        case 'vrs15m':
+          aValue = vrsDataMap[a]?.vrs15m ?? -Infinity;
+          bValue = vrsDataMap[b]?.vrs15m ?? -Infinity;
           break;
         case '5d':
           aValue = getPercentDistance(a, 'sma5');
@@ -153,20 +157,15 @@ export function WatchlistTable({
       <table className="watchlist-table">
         <thead>
           <tr>
-            <th
-              className="sortable"
-              onClick={() => handleSort('ticker')}
-            >
+            <th rowSpan="2" className="sortable" onClick={() => handleSort('ticker')}>
               Ticker{getSortIndicator('ticker')}
             </th>
-            <th className="group-separator-major">Timestamp</th>
-            <th
-              className="sortable"
-              onClick={() => handleSort('price')}
-            >
+            <th rowSpan="2" className="group-separator-major">Timestamp</th>
+            <th rowSpan="2" className="sortable" onClick={() => handleSort('price')}>
               Price{getSortIndicator('price')}
             </th>
             <th
+              rowSpan="2"
               className="sortable"
               onClick={() => handleSort('changePercent')}
               title="% Change from previous day's close"
@@ -174,20 +173,14 @@ export function WatchlistTable({
               Change %{getSortIndicator('changePercent')}
             </th>
             <th
-              className="sortable group-separator"
-              onClick={() => handleSort('vrs5m')}
-              title="VRS (5m): ADR%-normalized relative strength vs QQQ in % terms. Positive = outperformance, Negative = underperformance"
+              colSpan="3"
+              className="group-header group-separator"
+              title="Relative Strength vs QQQ (ADR%-normalized)"
             >
-              VRS (5m)%{getSortIndicator('vrs5m')}
+              RELATIVE STRENGTH
             </th>
             <th
-              className="sortable"
-              onClick={() => handleSort('vrsEma12')}
-              title="EMA₁₂(VRS): 12-period exponential moving average of VRS in % terms for smoothed trend"
-            >
-              EMA₁₂(VRS)%{getSortIndicator('vrsEma12')}
-            </th>
-            <th
+              rowSpan="2"
               className="sortable group-separator-major"
               onClick={() => handleSort('rvol')}
               title="Relative Volume: Current volume vs. 20-day average at same time"
@@ -195,6 +188,7 @@ export function WatchlistTable({
               RVol{getSortIndicator('rvol')}
             </th>
             <th
+              rowSpan="2"
               className="sortable group-separator-major"
               onClick={() => handleSort('adr')}
               title="20-Day Average Daily Range as % of price"
@@ -202,6 +196,7 @@ export function WatchlistTable({
               20D ADR%{getSortIndicator('adr')}
             </th>
             <th
+              rowSpan="2"
               className="sortable"
               onClick={() => handleSort('todayADR')}
               title="Today's range as percentage of 20-Day ADR"
@@ -209,6 +204,7 @@ export function WatchlistTable({
               Today&apos;s Move{getSortIndicator('todayADR')}
             </th>
             <th
+              rowSpan="2"
               className="sortable group-separator-major"
               onClick={() => handleSort('5morb')}
               title="5-Minute Opening Range Breakout (9:30-9:35 ET)"
@@ -216,6 +212,7 @@ export function WatchlistTable({
               5m ORB{getSortIndicator('5morb')}
             </th>
             <th
+              rowSpan="2"
               className="sortable group-separator-major"
               onClick={() => handleSort('5d')}
               title="% Distance from 5-Day SMA"
@@ -223,6 +220,7 @@ export function WatchlistTable({
               5D SMA{getSortIndicator('5d')}
             </th>
             <th
+              rowSpan="2"
               className="sortable"
               onClick={() => handleSort('10d')}
               title="% Distance from 10-Day EMA"
@@ -230,6 +228,7 @@ export function WatchlistTable({
               10D EMA{getSortIndicator('10d')}
             </th>
             <th
+              rowSpan="2"
               className="sortable"
               onClick={() => handleSort('21d')}
               title="% Distance from 21-Day EMA"
@@ -237,11 +236,35 @@ export function WatchlistTable({
               21D EMA{getSortIndicator('21d')}
             </th>
             <th
+              rowSpan="2"
               className="sortable"
               onClick={() => handleSort('50d')}
               title="% Distance from 50-Day SMA"
             >
               50D SMA{getSortIndicator('50d')}
+            </th>
+          </tr>
+          <tr>
+            <th
+              className="sortable vrs-subheader"
+              onClick={() => handleSort('vrs1m')}
+              title="VRS 1-min: Real-time relative strength vs QQQ"
+            >
+              1min{getSortIndicator('vrs1m')}
+            </th>
+            <th
+              className="sortable vrs-subheader"
+              onClick={() => handleSort('vrs5m')}
+              title="VRS 5-min: Intraday momentum vs QQQ"
+            >
+              5min{getSortIndicator('vrs5m')}
+            </th>
+            <th
+              className="sortable vrs-subheader"
+              onClick={() => handleSort('vrs15m')}
+              title="VRS 15-min: Trend momentum vs QQQ"
+            >
+              15min{getSortIndicator('vrs15m')}
             </th>
           </tr>
         </thead>

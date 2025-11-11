@@ -5,11 +5,11 @@ import { VRS_CONFIG } from '../config/constants';
  *
  * RVol Formula:
  * RVol = Current Cumulative Volume (9:30 AM → Now) /
- *        Average Cumulative Volume at Same Time (Last 20 Days)
+ *        Average Cumulative Volume at Same Time (Last 30 Days)
  *
  * Example at 10:15 AM:
  * - Today: Sum of all 5m candle volumes from 9:30 to 10:15 = 8M shares
- * - Historical: Average of 20 days' cumulative volume at 10:15 AM = 7.5M shares
+ * - Historical: Average of 30 days' cumulative volume at 10:15 AM = 7.5M shares
  * - RVol = 8M / 7.5M = 1.07x
  */
 

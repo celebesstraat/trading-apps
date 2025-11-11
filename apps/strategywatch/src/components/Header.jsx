@@ -1,9 +1,8 @@
 import './Header.css';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toggleMute } from '../utils/voiceAlerts';
 import { VoiceSettings } from './VoiceSettings';
-import { useData } from '../context/DataContext';
-import NewsAlertBanner from './NewsAlertBanner';
+import { useData } from '../hooks/useData';
 import { ModeToggle } from './ModeToggle';
 
 /**
@@ -24,31 +23,10 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
   const {
     globalMuted,
     setGlobalMuted,
-    newsItems,
-    dismissNewsItem,
-    markNewsAsRead,
-    getUnreadNewsCount,
     isLiveMode,
     toggleLiveMode
   } = useData();
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
-  const [showNewsAlert, setShowNewsAlert] = useState(false);
-  const [tickerFilter, setTickerFilter] = useState(null); // For filtering news by specific ticker
-
-  useEffect(() => {
-    // Listen for custom event from ticker news icons
-    const handleOpenNewsAlert = (event) => {
-      const ticker = event.detail?.ticker;
-      setTickerFilter(ticker); // Set the ticker filter
-      setShowNewsAlert(true);
-    };
-
-    window.addEventListener('openNewsAlert', handleOpenNewsAlert);
-
-    return () => {
-      window.removeEventListener('openNewsAlert', handleOpenNewsAlert);
-    };
-  }, []);
 
   const handleToggleMute = () => {
     const newMutedState = toggleMute();
@@ -62,21 +40,6 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
   const handleCloseVoiceSettings = () => {
     setShowVoiceSettings(false);
   };
-
-  const handleNewsIconClick = () => {
-    setTickerFilter(null); // Clear ticker filter when clicking universal news icon
-    setShowNewsAlert(!showNewsAlert);
-  };
-
-  const handleDismissNews = (newsId) => {
-    dismissNewsItem(newsId);
-  };
-
-  const handleMarkNewsRead = (newsId) => {
-    markNewsAsRead(newsId);
-  };
-
-  const unreadCount = getUnreadNewsCount();
 
   /**
    * Get CSS class for market status based on status, holiday, and weekend
@@ -164,19 +127,6 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
             onToggle={toggleLiveMode}
           />
         </div>
-        <div className="news-control">
-          {/* News alert button */}
-          <button
-            className={`news-alert-btn ${unreadCount > 0 ? 'has-news' : ''}`}
-            onClick={handleNewsIconClick}
-            title={`${unreadCount} unread news item${unreadCount !== 1 ? 's' : ''}`}
-          >
-            📰
-            {unreadCount > 0 && (
-              <span className="news-badge">{unreadCount}</span>
-            )}
-          </button>
-        </div>
         <div className="voice-control">
           {/* Voice alert controls */}
           <button
@@ -214,17 +164,6 @@ export function Header({ connected, currentTime, marketOpen, marketStatus, apiCo
         </div>
       </div>
     </header>
-
-      {/* News Alert Banner */}
-      {showNewsAlert && (
-        <NewsAlertBanner
-          newsItems={newsItems}
-          onDismiss={handleDismissNews}
-          onMarkRead={handleMarkNewsRead}
-          tickerFilter={tickerFilter}
-          onClearFilter={() => setTickerFilter(null)}
-        />
-      )}
 
       {/* Voice Settings Modal */}
       <VoiceSettings isOpen={showVoiceSettings} onClose={handleCloseVoiceSettings} />
