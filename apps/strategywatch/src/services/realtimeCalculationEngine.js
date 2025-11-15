@@ -601,9 +601,23 @@ export class RealTimeCalculationEngine {
    */
   async storeIndicators(symbol, indicators) {
     try {
+      // Store VRS data as a unified object
+      const vrsData = {};
+
       // Store each calculation type separately for fast retrieval
       for (const [type, calculation] of Object.entries(indicators.calculations)) {
-        await DataLake.storeStrategyResult(symbol, type, calculation);
+        // Store VRS calculations in a unified structure
+        if (type.startsWith('vrs')) {
+          vrsData[type] = calculation;
+        } else {
+          // Store other strategy types separately
+          await DataLake.storeStrategyResult(symbol, type, calculation);
+        }
+      }
+
+      // Store unified VRS data if we have any VRS calculations
+      if (Object.keys(vrsData).length > 0) {
+        await DataLake.storeStrategyResult(symbol, 'vrs', vrsData);
       }
 
       // Store latest price as tick

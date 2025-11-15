@@ -1,23 +1,23 @@
-/**
- * Market Calendar Service
- * Fetches and caches market calendar data from Alpaca API
- * Provides reliable trading day and holiday information
- */
 
 import { MARKET_DATA_CONFIG } from '../config/constants';
 
 const CALENDAR_DB_NAME = 'strategywatch-calendar-db';
 const CALENDAR_DB_VERSION = 1;
 const CALENDAR_STORE_NAME = 'calendar';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const CALENDAR_DAYS_TO_FETCH = 30; // Fetch 30 days from today
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CALENDAR_DAYS_TO_FETCH = 30;
 
+interface CalendarData {
+  date: string;
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+  sessionOpen: string;
+  sessionClose: string;
+  cachedAt: number;
+}
 
-/**
- * Initialize calendar database
- * @returns {Promise<IDBDatabase>}
- */
-async function initCalendarDB() {
+async function initCalendarDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(CALENDAR_DB_NAME, CALENDAR_DB_VERSION);
 
@@ -25,7 +25,7 @@ async function initCalendarDB() {
     request.onsuccess = () => resolve(request.result);
 
     request.onupgradeneeded = (event) => {
-      const db = event.target.result;
+      const db = (event.target as IDBOpenDBRequest).result;
 
       if (!db.objectStoreNames.contains(CALENDAR_STORE_NAME)) {
         const objectStore = db.createObjectStore(CALENDAR_STORE_NAME, { keyPath: 'date' });
@@ -36,13 +36,7 @@ async function initCalendarDB() {
   });
 }
 
-/**
- * Fetch calendar data from Alpaca API
- * @param {string} startDate - Start date in YYYY-MM-DD format
- * @param {string} endDate - End date in YYYY-MM-DD format
- * @returns {Promise<Array>} Array of calendar objects
- */
-async function fetchCalendarFromAPI(startDate, endDate) {
+async function fetchCalendarFromAPI(startDate: string, endDate: string): Promise<any[]> {
   try {
     const baseUrl = MARKET_DATA_CONFIG.SANDBOX
       ? 'https://paper-api.alpaca.markets'
@@ -71,18 +65,12 @@ async function fetchCalendarFromAPI(startDate, endDate) {
 }
 
 
-/**
- * Store calendar data in IndexedDB with timestamp
- * @param {Array} calendarData - Array of calendar objects
- * @returns {Promise<void>}
- */
-async function cacheCalendarData(calendarData) {
+async function cacheCalendarData(calendarData: any[]): Promise<void> {
   try {
     const db = await initCalendarDB();
     const cachedAt = Date.now();
 
     return new Promise((resolve, reject) => {
-      // Create transaction and handle all operations within it
       const transaction = db.transaction([CALENDAR_STORE_NAME], 'readwrite');
       const objectStore = transaction.objectStore(CALENDAR_STORE_NAME);
 
@@ -92,16 +80,14 @@ async function cacheCalendarData(calendarData) {
         resolve();
       };
 
-      // Clear old cache entries first
       const clearRequest = objectStore.clear();
       clearRequest.onerror = () => reject(clearRequest.error);
       clearRequest.onsuccess = () => {
-        // Store new calendar data with cache timestamp
 
         for (const day of calendarData) {
-          const record = {
+          const record: CalendarData = {
             date: day.date,
-            isOpen: true, // All returned days are trading days
+            isOpen: true,
             openTime: day.open,
             closeTime: day.close,
             sessionOpen: day.session_open,
@@ -111,9 +97,7 @@ async function cacheCalendarData(calendarData) {
 
           const putRequest = objectStore.put(record);
           putRequest.onerror = () => reject(putRequest.error);
-          putRequest.onsuccess = () => {
-            // All operations completed, transaction will finish automatically
-          };
+          putRequest.onsuccess = () => {};
         }
       };
     });
@@ -123,21 +107,12 @@ async function cacheCalendarData(calendarData) {
   }
 }
 
-/**
- * Clear old cache entries (deprecated - now handled within cacheCalendarData)
- * @returns {Promise<void>}
- */
-async function clearOldCache() {
-  // This function is now handled within cacheCalendarData to avoid transaction conflicts
+async function clearOldCache(): Promise<void> {
   console.log('[Calendar] Clear operation handled within cacheCalendarData');
   return Promise.resolve();
 }
 
-/**
- * Check if cache is valid (not expired)
- * @returns {Promise<boolean>}
- */
-async function isCacheValid() {
+async function isCacheValid(): Promise<boolean> {
   try {
     const db = await initCalendarDB();
     const transaction = db.transaction([CALENDAR_STORE_NAME], 'readonly');
@@ -145,9 +120,9 @@ async function isCacheValid() {
     const index = objectStore.index('cachedAt');
 
     return new Promise((resolve) => {
-      const request = index.openCursor(null, 'prev'); // Get most recent
+      const request = index.openCursor(null, 'prev');
       request.onsuccess = (event) => {
-        const cursor = event.target.result;
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
         if (!cursor) {
           resolve(false);
           return;
@@ -167,12 +142,7 @@ async function isCacheValid() {
   }
 }
 
-/**
- * Get calendar data from cache
- * @param {string} date - Date in YYYY-MM-DD format (optional)
- * @returns {Promise<Object|null>} Calendar object or null if not found
- */
-async function getCachedCalendarData(date) {
+async function getCachedCalendarData(date: string): Promise<any | null> {
   try {
     const db = await initCalendarDB();
     const transaction = db.transaction([CALENDAR_STORE_NAME], 'readonly');
@@ -202,46 +172,31 @@ async function getCachedCalendarData(date) {
   }
 }
 
-/**
- * Refresh calendar data from API
- * @returns {Promise<void>}
- */
-export async function refreshCalendar() {
+export async function refreshCalendar(): Promise<void> {
   try {
-    // Calculate date range (today + 29 days)
     const today = new Date();
-    const startDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
+    const startDate = today.toISOString().split('T')[0];
 
     const endDate = new Date(today);
     endDate.setDate(endDate.getDate() + CALENDAR_DAYS_TO_FETCH);
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    // Fetch from API
     const calendarData = await fetchCalendarFromAPI(startDate, endDateStr);
 
-    // Cache the data
     await cacheCalendarData(calendarData);
   } catch (error) {
     console.error('[Calendar] Error refreshing calendar:', error);
   }
 }
 
-/**
- * Get calendar data for a specific date (from cache or API)
- * @param {string} date - Date in YYYY-MM-DD format
- * @returns {Promise<Object|null>} Calendar object or null if not a trading day
- */
-export async function getCalendarData(date) {
+export async function getCalendarData(date: string): Promise<any | null> {
   try {
-    // Check if cache is valid
     const cacheValid = await isCacheValid();
 
     if (!cacheValid) {
-      // Refresh cache if invalid
       await refreshCalendar();
     }
 
-    // Get data from cache
     return await getCachedCalendarData(date);
   } catch (error) {
     console.error('[Calendar] Error getting calendar data:', error);
@@ -249,34 +204,22 @@ export async function getCalendarData(date) {
   }
 }
 
-/**
- * Check if a specific date is a trading day
- * @param {string} date - Date in YYYY-MM-DD format
- * @returns {Promise<boolean>}
- */
-export async function isTradingDay(date) {
+export async function isTradingDay(date: string): Promise<boolean> {
   try {
     const calendarData = await getCalendarData(date);
     return calendarData !== null;
   } catch (error) {
     console.error('[Calendar] Error checking trading day:', error);
-    // Fallback to weekend logic
     const dateObj = new Date(date);
     const dayOfWeek = dateObj.getDay();
-    return dayOfWeek >= 1 && dayOfWeek <= 5; // Monday-Friday
+    return dayOfWeek >= 1 && dayOfWeek <= 5;
   }
 }
 
-/**
- * Get the next trading day after a given date
- * @param {Date} date - Starting date
- * @returns {Promise<Date>} Next trading day
- */
-export async function getNextTradingDay(date) {
+export async function getNextTradingDay(date: Date): Promise<Date> {
   try {
     const nextDay = new Date(date);
 
-    // Check up to 7 days ahead (covers long weekends)
     for (let i = 1; i <= 7; i++) {
       nextDay.setDate(date.getDate() + i);
       const dateStr = nextDay.toISOString().split('T')[0];
@@ -286,7 +229,6 @@ export async function getNextTradingDay(date) {
       }
     }
 
-    // Fallback: return next weekday
     while (true) {
       nextDay.setDate(nextDay.getDate() + 1);
       const dayOfWeek = nextDay.getDay();
@@ -296,7 +238,6 @@ export async function getNextTradingDay(date) {
     }
   } catch (error) {
     console.error('[Calendar] Error getting next trading day:', error);
-    // Fallback to current logic
     const fallbackDay = new Date(date);
     do {
       fallbackDay.setDate(fallbackDay.getDate() + 1);
@@ -305,11 +246,15 @@ export async function getNextTradingDay(date) {
   }
 }
 
-/**
- * Get today's trading status
- * @returns {Promise<Object>} { isTradingDay, openTime, closeTime, sessionOpen, sessionClose }
- */
-export async function getTodayTradingStatus() {
+interface TradingStatus {
+  isTradingDay: boolean;
+  openTime: string | null;
+  closeTime: string | null;
+  sessionOpen: string | null;
+  sessionClose: string | null;
+}
+
+export async function getTodayTradingStatus(): Promise<TradingStatus> {
   try {
     const today = new Date().toISOString().split('T')[0];
     const calendarData = await getCalendarData(today);
@@ -333,9 +278,8 @@ export async function getTodayTradingStatus() {
     }
   } catch (error) {
     console.error('[Calendar] Error getting today trading status:', error);
-    // Fallback to default
     return {
-      isTradingDay: true, // Assume trading day on error
+      isTradingDay: true,
       openTime: '09:30',
       closeTime: '16:00',
       sessionOpen: '09:30',
@@ -344,11 +288,7 @@ export async function getTodayTradingStatus() {
   }
 }
 
-/**
- * Get upcoming market holidays within the cached period
- * @returns {Promise<Array>} Array of holiday dates
- */
-export async function getUpcomingHolidays() {
+export async function getUpcomingHolidays(): Promise<string[]> {
   try {
     const today = new Date().toISOString().split('T')[0];
     const db = await initCalendarDB();
@@ -356,11 +296,11 @@ export async function getUpcomingHolidays() {
     const objectStore = transaction.objectStore(CALENDAR_STORE_NAME);
 
     return new Promise((resolve) => {
-      const holidays = [];
+      const holidays: string[] = [];
       const request = objectStore.openCursor();
 
       request.onsuccess = (event) => {
-        const cursor = event.target.result;
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
         if (!cursor) {
           resolve(holidays);
           return;
@@ -368,19 +308,16 @@ export async function getUpcomingHolidays() {
 
         const record = cursor.value;
 
-        // If date is after today and it's a weekend, it might be a holiday Monday/Friday
         if (record.date >= today) {
           const dateObj = new Date(record.date);
           const dayOfWeek = dateObj.getDay();
 
-          // Check adjacent days to identify holiday weekends
-          // This is a simplified approach - holidays are complex
           if (dayOfWeek === 0 || dayOfWeek === 6) {
             const checkDate = new Date(dateObj);
-            if (dayOfWeek === 0) { // Sunday
-              checkDate.setDate(checkDate.getDate() - 1); // Check Saturday
-            } else { // Saturday
-              checkDate.setDate(checkDate.getDate() + 1); // Check Sunday
+            if (dayOfWeek === 0) {
+              checkDate.setDate(checkDate.getDate() - 1);
+            } else {
+              checkDate.setDate(checkDate.getDate() + 1);
             }
 
             const checkDateStr = checkDate.toISOString().split('T')[0];
@@ -403,11 +340,7 @@ export async function getUpcomingHolidays() {
   }
 }
 
-/**
- * Clear all calendar cache (useful for testing)
- * @returns {Promise<void>}
- */
-export async function clearCalendarCache() {
+export async function clearCalendarCache(): Promise<void> {
   try {
     await clearOldCache();
     console.log('[Calendar] Cache cleared');
@@ -417,11 +350,14 @@ export async function clearCalendarCache() {
   }
 }
 
-/**
- * Get calendar cache statistics
- * @returns {Promise<Object>} Cache stats
- */
-export async function getCalendarStats() {
+interface CalendarStats {
+    cachedDays: number;
+    cacheTTL: number;
+    dbName: string;
+    version: number;
+}
+
+export async function getCalendarStats(): Promise<CalendarStats> {
   try {
     const db = await initCalendarDB();
     const transaction = db.transaction([CALENDAR_STORE_NAME], 'readonly');
@@ -432,7 +368,7 @@ export async function getCalendarStats() {
       request.onsuccess = () => {
         resolve({
           cachedDays: request.result,
-          cacheTTL: CACHE_TTL_MS / (1000 * 60 * 60), // hours
+          cacheTTL: CACHE_TTL_MS / (1000 * 60 * 60),
           dbName: CALENDAR_DB_NAME,
           version: CALENDAR_DB_VERSION
         });

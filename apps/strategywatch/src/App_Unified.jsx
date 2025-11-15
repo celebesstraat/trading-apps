@@ -17,8 +17,7 @@ function AppContent() {
     data,
     newsItems,
     isConnected,
-    newsConnected,
-    isLoading,
+        isLoading,
     isInitialized,
     engineStatus,
     marketOpen,
@@ -182,7 +181,22 @@ VITE_ALPACA_DATA_FEED=iex
       transformedData.rvolDataMap[symbol] = symbolData.strategies.rvol;
     }
     if (symbolData.strategies?.vrs) {
-      transformedData.vrsDataMap[symbol] = symbolData.strategies.vrs;
+      // Extract VRS data from unified structure
+      const vrsObject = symbolData.strategies.vrs;
+      transformedData.vrsDataMap[symbol] = {
+        vrs1m: vrsObject.vrs1m?.value || vrsObject.vrs1m || null, // 1-minute VRS
+        vrs5m: vrsObject.vrs5m?.value || vrsObject.vrs5m || null, // 5-minute VRS
+        vrs15m: vrsObject.vrs15m?.value || vrsObject.vrs15m || null, // 15-minute VRS
+        timestamp: vrsObject.timestamp || Date.now()
+      };
+    } else {
+      // Provide empty VRS data to prevent undefined errors
+      transformedData.vrsDataMap[symbol] = {
+        vrs1m: null,
+        vrs5m: null,
+        vrs15m: null,
+        timestamp: null
+      };
     }
   });
 

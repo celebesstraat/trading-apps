@@ -4,7 +4,7 @@
  */
 
 // Import the new architecture services
-import { clearDataLake, getDataLakeStats, getMultipleTickerData } from '../services/dataLake';
+import { getDataLakeStats, getMultipleTickerData } from '../services/dataLake';
 import { createDataIngestionEngine } from '../services/dataIngestionEngine';
 import { getQueryOptimizer } from '../services/queryOptimizer';
 import { executeMigration } from '../services/dataMigration';

@@ -1,193 +1,445 @@
-# CLAUDE.md
+# StrategyWatch Platform
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**Real-time analytics platform for US stock trading with institutional-grade data architecture.**
+
+This monorepo houses a powerful suite of trading applications built on a unified data infrastructure. The flagship StrategyWatch app delivers sub-second market analytics with advanced caching, real-time calculations, and intelligent data synchronization.
+
+---
+
+## Quick Start
+
+```bash
+# Install & run
+npm install
+npm run dev:strategywatch
+
+# Production build
+npm run build:strategywatch
+
+# Code quality
+npm run lint
+npm run type-check
+```
+
+**Environment Setup** (`apps/strategywatch/.env`):
+```env
+VITE_ALPACA_API_KEY_ID=your_alpaca_key_id
+VITE_ALPACA_SECRET_KEY=your_alpaca_secret
+VITE_ALPACA_DATA_FEED=iex
+```
+
+---
+
+## Architecture
+
+### Unified Data Platform v2.0
+
+StrategyWatch is built on a sophisticated **4-layer data architecture** providing instant cache access, real-time WebSocket feeds, and intelligent background synchronization:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  UI Layer (React + TypeScript)                              │
+│  ├─ UnifiedDataProvider (Context API)                       │
+│  └─ Component Tree (Header, Table, Rows, Cells)             │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│  Orchestration Layer                                         │
+│  ├─ DataIngestionEngine (Event-driven coordinator)          │
+│  ├─ QueryOptimizer (Multi-level caching + batching)         │
+│  └─ RealTimeCalculationEngine (Accurate indicators)         │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│  Data Lake (IndexedDB)                                       │
+│  ├─ Ticks (1-day retention, real-time)                      │
+│  ├─ Minute Candles (30-day, constructed from ticks)         │
+│  ├─ 5m Candles (30-day, RVol calculations)                  │
+│  ├─ Daily Candles (250-day, moving averages)                │
+│  ├─ Indicators Cache (pre-computed, 2hr TTL)                │
+│  └─ Strategy Results (7-day, scored outputs)                │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│  Market Data Provider (Alpaca Markets)                       │
+│  ├─ WebSocket: Real-time ticks (unlimited, IEX)             │
+│  └─ REST API: Historical data (200 calls/min)               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Services
+
+**Data Ingestion Engine** (`dataIngestionEngine.ts`)
+- Event-driven coordinator for all data flows
+- WebSocket connection management with exponential backoff
+- Intelligent rate limiting (200 RPM with 80% safety margin)
+- Background sync scheduling and maintenance tasks
+- Data quality scoring and health monitoring
+
+**Data Lake** (`dataLake.ts`)
+- IndexedDB-based storage with optimized schema
+- Automatic retention policies and cleanup
+- Compression for tick data
+- Performance analytics and query tracking
+- Migration utilities for schema upgrades
+
+**Query Optimizer** (`queryOptimizer.ts`)
+- Multi-level TTL-based caching (5s quotes, 60s indicators)
+- Batch query processing for efficiency
+- Pre-computation of common indicators
+- Cache hit rate tracking and optimization
+
+**Real-Time Calculation Engine** (`realtimeCalculationEngine.ts`)
+- Accurate tick-by-tick indicator updates
+- Minute candle aggregation from raw ticks
+- Real-time VRS (Volume Relative Strength) calculations
+- Tick validation and anomaly detection
+
+**Unified Data Provider** (`UnifiedDataProvider.tsx`)
+- Single React Context for all market data
+- Automatic migration from legacy architecture
+- Status tracking (loading, connected, error states)
+- Performance stats exposure for debugging
+
+### Strategy Engine
+
+**ORB (Opening Range Breakout)**
+- Monitors first 5-minute candle (9:30-9:35 AM ET)
+- Detects breakouts above/below opening range
+- Outputs 0-100 score for trade setup quality
+
+**RVol (Relative Volume)**
+- Compares current volume to 30-day average
+- Uses 5-minute intraday candles
+- Identifies unusual volume spikes
+
+**VRS (Volume Relative Strength)**
+- Multi-timeframe analysis (1m, 5m, 15m)
+- Real-time strength vs. benchmark (SPY)
+- Computed from live tick data
+
+**INMERELO (Mean Reversion)**
+- 10D/21D/50D moving average confluence
+- Distance from key levels
+- RAG scoring for reversal probability
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | React 18 + Vite 5 |
+| **Language** | TypeScript (strict mode) |
+| **State** | React Context API + Event Emitters |
+| **Storage** | IndexedDB (with DataLake abstraction) |
+| **Data Source** | Alpaca Markets (WebSocket + REST) |
+| **Styling** | CSS Modules + CSS Variables |
+| **Build** | Vite (ESM, code splitting) |
+| **Deploy** | Vercel (static site) |
+
+---
 
 ## Project Structure
 
-This is a monorepo for financial trading applications using npm workspaces:
-
-- `apps/strategywatch/` - Main trading strategy monitoring application
-- `packages/` - Shared packages (currently empty, planned for future shared utilities)
-
-## Development Commands
-
-### Root Level Commands
-```bash
-# Install dependencies for all apps
-npm install
-
-# Run StrategyWatch development server
-npm run dev:strategywatch
-
-# Build StrategyWatch for production
-npm run build:strategywatch
-
-# Preview StrategyWatch build
-npm run preview:strategywatch
+```
+apps/strategywatch/
+├── src/
+│   ├── components/          # React UI components
+│   │   ├── Header.tsx
+│   │   ├── WatchlistTable.tsx
+│   │   ├── TickerRow.tsx   # Memoized for performance
+│   │   └── HeatmapCell.tsx # RAG color-coded cells
+│   ├── context/
+│   │   └── UnifiedDataProvider.tsx  # Main data context
+│   ├── services/
+│   │   ├── dataLake.ts              # IndexedDB abstraction
+│   │   ├── dataIngestionEngine.ts   # Orchestrator
+│   │   ├── queryOptimizer.ts        # Caching layer
+│   │   ├── realtimeCalculationEngine.ts
+│   │   ├── marketData.ts            # Alpaca provider
+│   │   ├── calculations.ts          # Indicators
+│   │   └── marketCalendar.ts        # Trading hours
+│   ├── types/
+│   │   └── types.ts                 # TypeScript definitions
+│   ├── config/
+│   │   ├── watchlist.ts             # Symbol list
+│   │   └── constants.ts             # Strategy params
+│   └── utils/
+│       ├── rvolCalculations.ts
+│       ├── marketTime.ts
+│       └── voiceAlerts.ts
+├── tsconfig.json
+└── vite.config.js
 ```
 
-### StrategyWatch App Commands
-Navigate to `apps/strategywatch/` first, then use:
+---
 
-```bash
-# Development
-npm run dev                    # Start Vite dev server (localhost:5173)
-npm run build                  # Build for production
-npm run preview                # Preview production build
-npm run build:prod            # Clean + lint + build
+## Key Patterns
 
-# Code Quality
-npm run lint                   # ESLint check (max 0 warnings)
-npm run lint:fix              # Auto-fix ESLint issues
-npm run type-check            # TypeScript type checking without emit
-
-# Utilities
-npm run clean                 # Remove dist/ folder
-npm run build:analyze         # Build + analyze bundle size
+### Event-Driven Architecture
+All data flows through event emitters. Subscribers receive updates via:
+```typescript
+engine.on('tick', (data) => { /* handle tick */ })
+engine.on('quote', (data) => { /* handle quote */ })
+engine.on('indicators', (data) => { /* handle indicators */ })
+engine.on('strategies', (data) => { /* handle strategies */ })
 ```
 
-## Architecture Overview
+### Intelligent Caching
+Three-tier cache strategy:
+1. **Query Optimizer Cache** (in-memory, 5s-5min TTL)
+2. **Data Lake Cache** (IndexedDB, hours to days)
+3. **Background Refresh** (periodic sync when stale)
 
-### StrategyWatch Application
-A React 18 + Vite real-time trading strategy monitor with the following key architectural patterns:
+### Performance First
+- React.memo on heavy components (TickerRow)
+- Batched API calls (max 3 concurrent)
+- Debounced WebSocket updates (100ms)
+- CSS-based rendering (no runtime styles)
+- Code splitting via Vite
 
-**Data Flow:**
-- `DataContext.jsx` provides centralized state management for all market data
-- **Alpaca Markets**: Single data source for simplicity and reliability
-  - **WebSocket**: Real-time price ticks (sub-second updates, unlimited streaming)
-  - **REST API**: Historical bars, quotes, and intraday candles (200 RPM, IEX data)
-- Strategy calculations (`orbStrategy.js`, `inmereloStrategy.js`) process data into scoring
-- `rvolDatabase.js` - IndexedDB storage for historical 5m candles (RVol calculation)
+### Type Safety
+Full TypeScript coverage with strict mode:
+- `Tick`, `Bar`, `Quote` types for market data
+- `StrategyScore`, `IndicatorData` for calculations
+- `TickerData` composite type for unified data structure
 
-**Component Structure:**
-- `App.jsx` - Main application with market hours detection
-- `WatchlistTable.jsx` - Table container with sorting functionality
-- `TickerRow.jsx` - Individual stock row (memoized for performance)
-- `HeatmapCell.jsx` - Color-coded strategy score cells with tooltips
-- `Header/Footer.jsx` - Layout components
-- `ErrorBoundary.jsx` - React error boundary
+---
 
-**Strategy System:**
-- **ORB Strategy**: Opening Range Breakout detection using first 5-minute candle
-- **INMERELO Strategy**: Mean reversion signals using 10D/21D/50D moving averages
-- Both return 0-100 scores that map to RAG (Red-Amber-Green) color gradient
+## Data Flow
 
-**Key Services:**
-- `marketData.js` - Alpaca Markets provider (real-time WebSocket + REST)
-- `calculations.js` - Price change and technical indicator calculations
-- `newsService.js` - Market news and announcements
-- `voiceAlerts.js` - Text-to-speech alert system
-- `rvolDatabase.js` - IndexedDB storage for RVol historical data
+**Startup Sequence:**
+1. Load cached data from Data Lake (instant UI)
+2. Initialize WebSocket connection
+3. Start real-time calculation engine
+4. Begin background data synchronization
+5. Schedule maintenance tasks (cleanup every 6h)
+
+**Real-Time Updates:**
+```
+WebSocket Tick → DataIngestionEngine → RealTimeCalcEngine
+                       ↓
+                   Store in DataLake
+                       ↓
+                 Update Query Cache
+                       ↓
+                Emit to UI Subscribers
+```
+
+**Historical Data Sync:**
+```
+QueryOptimizer checks cache → Miss → DataIngestionEngine
+                                          ↓
+                                   Check rate limit
+                                          ↓
+                                    Fetch from API
+                                          ↓
+                                   Store in DataLake
+                                          ↓
+                                  Calculate indicators
+                                          ↓
+                                    Update cache
+```
+
+---
+
+## Development Guidelines
+
+### Code Style
+- Use TypeScript strict mode
+- No `any` types without justification
+- Prefer functional components with hooks
+- Extract complex logic to services
+- Keep components under 300 lines
+
+### Performance
+- Always memoize heavy list items
+- Batch state updates where possible
+- Use `useCallback` for expensive functions
+- Profile with React DevTools before optimization
+
+### Data Access
+**✅ Correct:**
+```typescript
+const { data, getSymbolData } = useUnifiedData();
+const symbolData = getSymbolData('AAPL');
+```
+
+**❌ Incorrect:**
+```typescript
+// Don't fetch directly from services in components
+const data = await dataLake.getTickerData('AAPL');
+```
+
+### Error Handling
+- All service methods should catch and log errors
+- UI should show graceful degradation, never crash
+- WebSocket errors trigger automatic reconnection
+- API errors respect rate limits
+
+---
+
+## Market Data
+
+**Alpaca Markets** (single source strategy):
+- **WebSocket**: Unlimited real-time IEX feed
+- **REST API**: 200 calls/min (80% safety margin = 160)
+- **Data Feed**: IEX (free tier, major US stocks/ETFs)
+
+**Typical API Usage:**
+- **Startup**: ~60 calls (30 tickers × 2: daily bars + quotes)
+- **Market Hours**: ~5-10 calls/min (background refresh)
+- **After Hours**: ~1 call/min (status checks)
+
+**WebSocket Handling:**
+- Exponential backoff on reconnection (1s, 1.5s, 2.25s...)
+- Max 5 retry attempts before error state
+- Special handling for connection limit errors (60s wait)
+
+---
 
 ## Configuration
 
-### Environment Variables
-Required in `apps/strategywatch/.env`:
+### Watchlist (`config/watchlist.ts`)
+```typescript
+export const WATCHLIST = [
+  'SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL', // ... 25-30 symbols
+];
 ```
-# Alpaca Markets (real-time WebSocket + REST API)
-VITE_ALPACA_API_KEY_ID=your_alpaca_api_key_id
-VITE_ALPACA_SECRET_KEY=your_alpaca_secret_key
+
+### Strategy Constants (`config/constants.ts`)
+```typescript
+export const ORB_CONFIG = {
+  BREAKOUT_THRESHOLD: 0.002, // 0.2% move
+  TIME_WINDOW: 5, // minutes
+};
+
+export const RVOL_CONFIG = {
+  LOOKBACK_DAYS: 30,
+  THRESHOLD: 1.5, // 150% of average
+};
+```
+
+### Retention Policies (`dataLake.ts`)
+```typescript
+const RETENTION = {
+  TICKS: 24 * 60 * 60 * 1000,           // 1 day
+  MINUTE_CANDLES: 30 * 24 * 60 * 60 * 1000, // 30 days
+  FIVE_MIN_CANDLES: 30 * 24 * 60 * 60 * 1000, // 30 days
+  DAILY_CANDLES: 250 * 24 * 60 * 60 * 1000,  // 250 days
+  INDICATORS: 30 * 24 * 60 * 60 * 1000,      // 30 days
+  STRATEGY_RESULTS: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+```
+
+---
+
+## Debugging
+
+### Browser Console Utilities
+```javascript
+// Available in browser console
+window.dataLakeUtils.getDataLakeStats()    // Storage stats
+window.dataLakeUtils.cleanupOldData()      // Manual cleanup
+window.dataLakeUtils.clearDataLake()       // Reset all data
+window.dataLakeUtils.forceSchemaUpgrade()  // Fix corruption
+```
+
+### Performance Stats
+Development mode shows live performance banner:
+- Engine status
+- WebSocket connection state
+- Cache hit rate
+- Query count
+- Data quality score
+
+### Common Debug Commands
+```typescript
+// In component using useUnifiedData
+const { getPerformanceStats } = useUnifiedData();
+console.log(getPerformanceStats());
+
+// Engine status
+engine.getStatus() // isRunning, apiCallsInWindow, dataQuality, etc.
+```
+
+---
+
+## Deployment
+
+**Production Build:**
+```bash
+npm run build:prod  # Clean + lint + type-check + build
+```
+
+**Vercel Deployment:**
+1. Connect GitHub repo
+2. Set environment variables (Alpaca keys)
+3. Build command: `npm run build:strategywatch`
+4. Output directory: `apps/strategywatch/dist`
+
+**Environment Variables (Production):**
+```
+VITE_ALPACA_API_KEY_ID=pk_***
+VITE_ALPACA_SECRET_KEY=***
 VITE_ALPACA_DATA_FEED=iex
 VITE_ALPACA_SANDBOX=false
 ```
 
-### Key Configuration Files
-- `src/config/watchlist.js` - Stock symbols to monitor (20-30 tickers)
-- `src/config/constants.js` - Strategy thresholds and parameters
-- `src/styles/variables.css` - CSS color scheme and design tokens
+---
 
-## Data Sources
+## Troubleshooting
 
-The app uses **Alpaca Markets** as the single data source for simplicity, reliability, and better rate limits:
+**WebSocket won't connect:**
+- Check Alpaca API credentials
+- Verify IEX subscription active
+- Look for "connection limit exceeded" (close other tabs)
+- Check browser console for error messages
 
-### Data Usage
+**Data not loading:**
+- Open browser DevTools → Application → IndexedDB
+- Check `strategywatch-data-lake-v3` database exists
+- Run `window.dataLakeUtils.getDataLakeStats()`
+- If corrupted: `window.dataLakeUtils.forceSchemaUpgrade()`
 
-| Data Type | Source | Details |
-|-----------|--------|---------|
-| **Real-time Price Ticks** | Alpaca WebSocket | Sub-second updates, unlimited streaming, IEX data |
-| **Historical Daily Bars** | Alpaca REST | 250 days for MA calculations (10D, 21D, 50D, etc.) |
-| **Previous Close** | Alpaca REST | Quote API provides previous close for % change |
-| **ORB 5m Candle** | Alpaca REST | First 5-minute candle (9:30-9:35 AM) for breakout detection |
-| **Intraday 5m Candles** | Alpaca REST | For RVol calculation (relative volume analysis) |
-| **Moving Averages** | Calculated | Computed from daily bars on-demand |
+**Slow performance:**
+- Check cache hit rate in performance banner
+- Run cleanup: `window.dataLakeUtils.cleanupOldData()`
+- Profile with React DevTools
+- Check API rate limit status
 
-### API Rate Limits
-
-**Alpaca Free Tier:**
-- **WebSocket**: Unlimited real-time streaming (primary data source)
-- **REST**: 200 calls/min
-- **Data Feed**: IEX (free tier) - covers all major US stocks and ETFs
-- **Startup usage**: ~60 REST calls (30 tickers × 2 calls: daily bars + quotes)
-- **During market hours**: Minimal REST usage (WebSocket provides real-time data)
-- **ORB fetch**: ~30 calls at market open (one per ticker for 5m candle)
-
-### Why Alpaca-Only?
-
-**Simplicity:**
-- Single API to manage and monitor
-- No complex routing logic or cache coordination
-- Fewer environment variables and configuration
-
-**Reliability:**
-- No dependency on multiple providers
-- Fewer points of failure
-- Consistent data quality (all IEX)
-
-**Performance:**
-- Better rate limits (200 RPM vs 60 RPM)
-- No latency from refinement delays
-- Instant ORB signals without waiting for secondary confirmations
-
-## Development Notes
-
-**Performance Optimizations:**
-- React.memo on TickerRow components to prevent unnecessary re-renders
-- Debounced WebSocket updates (100ms) for smooth UI
-- Efficient color calculations using utility functions
-- CSS-based styling for better performance than styled-components
-
-**Market Hours Awareness:**
-- Application detects market open/closed status
-- Different display modes for pre-market, trading, and after-hours
-- ORB strategy only active during market hours (needs first 5m candle)
-
-**Browser Compatibility:**
-- Requires ES6, WebSocket API, CSS Grid
-- Optimized for modern browsers (Chrome/Edge 90+, Firefox 88+, Safari 14+)
-
-## Common Issues
-
-**API Key Problems:**
-- Must start with `VITE_` prefix for Vite to expose it to client
-- Restart dev server after changing `.env` file
-- Verify Alpaca API credentials at alpaca.markets/dashboard
-- Need both API Key ID and Secret Key for authentication
-
-**WebSocket Connection:**
-- Alpaca provides excellent WebSocket reliability
-- Check browser console for connection errors
-- Ensure stable internet connection
-- REST API serves as automatic fallback if WebSocket disconnects
-
-**Data Loading:**
-- Initial load takes 10-30 seconds (historical data for all tickers)
-- Scores show "—" during initial data fetch
-- IEX data feed covers most major US stocks and ETFs
-
-## Deployment
-
-**Static Site Ready:**
-- Builds to `dist/` folder
-- Compatible with Vercel, Netlify, or any static hosting
-- Set environment variables in hosting platform:
-  - `VITE_ALPACA_API_KEY_ID`
-  - `VITE_ALPACA_SECRET_KEY`
-  - `VITE_ALPACA_DATA_FEED`
-  - `VITE_ALPACA_SANDBOX`
-
-**Build Process:**
+**TypeScript errors:**
 ```bash
-npm run build:prod    # Full production pipeline
+npm run type-check  # See all type errors
+npm run lint:fix    # Auto-fix linting issues
 ```
 
-This creates optimized static assets with proper caching headers and minimal bundle size.
+---
+
+## Future Enhancements
+
+**Planned Features:**
+- [ ] Multi-symbol correlation analysis
+- [ ] Advanced chart visualizations (TradingView integration)
+- [ ] Custom strategy builder (visual programming)
+- [ ] Alert management system (SMS/email/push)
+- [ ] Portfolio tracking integration
+- [ ] Options flow analysis
+- [ ] News sentiment scoring
+- [ ] Machine learning signal validation
+
+**Shared Packages (Roadmap):**
+- `@trading-apps/api-clients` - Reusable provider abstractions
+- `@trading-apps/indicators` - Technical analysis library
+- `@trading-apps/ui` - Shared component library
+- `@trading-apps/types` - Common TypeScript definitions
+
+---
+
+## License & Disclaimer
+
+**MIT License** - Open source for educational purposes.
+
+**⚠️ Trading Disclaimer:**
+This software is for informational and educational purposes only. It does not constitute financial advice. Trading involves substantial risk of loss. Always conduct your own research and consult licensed financial professionals before making investment decisions.

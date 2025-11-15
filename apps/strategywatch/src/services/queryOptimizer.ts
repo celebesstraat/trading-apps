@@ -1,86 +1,50 @@
-/**
- * Query Optimization Service
- * Provides optimized queries and data access patterns for the unified data lake
- * Implements smart caching, pre-computation, and efficient data retrieval
- */
+import { getTickerData, getMultipleTickerData } from './dataLake.ts';
+import { TickerData, Quote, IndicatorData, Bar, StrategyResult } from '../types/types';
 
-import {
-  getDataLakeConnection,
-  getTickerData,
-  getMultipleTickerData
-} from './dataLake';
-
-// Query optimization configuration
 const QUERY_CONFIG = {
-  // Cache configuration
   CACHE_TTL: {
-    QUOTE: 5000,           // 5 seconds for quotes
-    INDICATORS: 60000,     // 1 minute for indicators
-    CANDLES: 300000,       // 5 minutes for candles
-    STRATEGIES: 300000     // 5 minutes for strategies (increased from 30s to prevent VRS disappearing)
+    QUOTE: 5000,
+    INDICATORS: 60000,
+    CANDLES: 300000,
+    STRATEGIES: 300000
   },
-
-  // Batch sizes
-  BATCH_SIZE: 10,          // Process 10 tickers at once
-  MAX_CONCURRENT: 3,       // Max 3 concurrent queries
-
-  // Pre-computation thresholds
+  BATCH_SIZE: 10,
+  MAX_CONCURRENT: 3,
   PRECOMPUTE: {
-    MOVING_AVERAGES: true,  // Pre-compute MAs
-    ADR: true,             // Pre-compute ADR
-    VRS: true,             // Pre-compute VRS
-    ORB: true              // Pre-compute ORB results
+    MOVING_AVERAGES: true,
+    ADR: true,
+    VRS: true,
+    ORB: true
   }
 };
 
-/**
- * Query cache for optimized data access
- */
 class QueryCache {
-  constructor() {
-    this.cache = new Map();
-    this.timers = new Map();
-  }
+  private cache: Map<string, any> = new Map();
+  private timers: Map<string, NodeJS.Timeout> = new Map();
 
-  /**
-   * Get cached value
-   * @param {string} key - Cache key
-   * @returns {any} Cached value or null
-   */
-  get(key) {
+  get(key: string): any | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
 
-    // Check if expired
     if (Date.now() > entry.expiresAt) {
       this.cache.delete(key);
       if (this.timers.has(key)) {
-        clearTimeout(this.timers.get(key));
+        clearTimeout(this.timers.get(key)!);
         this.timers.delete(key);
       }
       return null;
     }
 
-    // Update last accessed time
     entry.lastAccessed = Date.now();
     return entry.value;
   }
 
-  /**
-   * Set cached value with TTL
-   * @param {string} key - Cache key
-   * @param {any} value - Value to cache
-   * @param {number} ttl - Time to live in milliseconds
-   */
-  set(key, value, ttl = 60000) {
+  set(key: string, value: any, ttl = 60000): void {
     const expiresAt = Date.now() + ttl;
-
-    // Clear existing timer
     if (this.timers.has(key)) {
-      clearTimeout(this.timers.get(key));
+      clearTimeout(this.timers.get(key)!);
     }
 
-    // Set cache entry
     this.cache.set(key, {
       value,
       expiresAt,
@@ -88,7 +52,6 @@ class QueryCache {
       lastAccessed: Date.now()
     });
 
-    // Set expiration timer
     const timer = setTimeout(() => {
       this.cache.delete(key);
       this.timers.delete(key);
@@ -96,22 +59,15 @@ class QueryCache {
     this.timers.set(key, timer);
   }
 
-  /**
-   * Delete cached value
-   * @param {string} key - Cache key
-   */
-  delete(key) {
+  delete(key: string): void {
     this.cache.delete(key);
     if (this.timers.has(key)) {
-      clearTimeout(this.timers.get(key));
+      clearTimeout(this.timers.get(key)!);
       this.timers.delete(key);
     }
   }
 
-  /**
-   * Clear all cache
-   */
-  clear() {
+  clear(): void {
     this.cache.clear();
     for (const timer of this.timers.values()) {
       clearTimeout(timer);
@@ -119,11 +75,7 @@ class QueryCache {
     this.timers.clear();
   }
 
-  /**
-   * Get cache statistics
-   * @returns {object} Cache stats
-   */
-  getStats() {
+  getStats(): any {
     const now = Date.now();
     let activeEntries = 0;
     let expiredEntries = 0;
@@ -140,37 +92,26 @@ class QueryCache {
       totalEntries: this.cache.size,
       activeEntries,
       expiredEntries,
-      memoryUsage: this.cache.size * 200 // Rough estimate
+      memoryUsage: this.cache.size * 200
     };
   }
 }
 
-/**
- * Query Optimizer for efficient data access
- */
 export class QueryOptimizer {
-  constructor() {
-    this.cache = new QueryCache();
-    this.queryQueue = [];
-    this.isProcessing = false;
-    this.stats = {
-      queriesExecuted: 0,
-      cacheHits: 0,
-      cacheMisses: 0,
-      avgQueryTime: 0
-    };
-  }
+  public cache: QueryCache = new QueryCache();
+  private queryQueue: any[] = [];
+  private isProcessing = false;
+  private stats = {
+    queriesExecuted: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    avgQueryTime: 0
+  };
 
-  /**
-   * Get current quote for symbol with caching
-   * @param {string} symbol - Stock symbol
-   * @returns {Promise<object|null>} Current quote
-   */
-  async getCurrentQuote(symbol) {
+  async getCurrentQuote(symbol: string): Promise<Quote | null> {
     const cacheKey = `quote:${symbol}`;
     const startTime = Date.now();
 
-    // Check cache first
     let quote = this.cache.get(cacheKey);
     if (quote) {
       this.stats.cacheHits++;
@@ -179,16 +120,13 @@ export class QueryOptimizer {
 
     this.stats.cacheMisses++;
 
-    // Fetch from database
     const tickerData = await getTickerData(symbol);
     quote = tickerData?.currentQuote || null;
 
     if (quote) {
-      // Cache the result
       this.cache.set(cacheKey, quote, QUERY_CONFIG.CACHE_TTL.QUOTE);
     }
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
     this.stats.queriesExecuted++;
@@ -196,17 +134,11 @@ export class QueryOptimizer {
     return quote;
   }
 
-  /**
-   * Get current quotes for multiple symbols efficiently
-   * @param {string[]} symbols - Stock symbols
-   * @returns {Promise<object>} Map of symbol -> quote
-   */
-  async getCurrentQuotes(symbols) {
+  async getCurrentQuotes(symbols: string[]): Promise<Record<string, Quote>> {
     const startTime = Date.now();
-    const results = {};
-    const uncachedSymbols = [];
+    const results: Record<string, Quote> = {};
+    const uncachedSymbols: string[] = [];
 
-    // Check cache for each symbol
     for (const symbol of symbols) {
       const cacheKey = `quote:${symbol}`;
       const quote = this.cache.get(cacheKey);
@@ -219,7 +151,6 @@ export class QueryOptimizer {
       }
     }
 
-    // Batch fetch uncached symbols
     if (uncachedSymbols.length > 0) {
       const tickerData = await getMultipleTickerData(uncachedSymbols);
 
@@ -237,23 +168,16 @@ export class QueryOptimizer {
       this.stats.queriesExecuted++;
     }
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
 
     return results;
   }
 
-  /**
-   * Get indicators for symbol with caching
-   * @param {string} symbol - Stock symbol
-   * @returns {Promise<object|null>} Indicators data
-   */
-  async getIndicators(symbol) {
+  async getIndicators(symbol: string): Promise<IndicatorData | null> {
     const cacheKey = `indicators:${symbol}`;
     const startTime = Date.now();
 
-    // Check cache first
     let indicators = this.cache.get(cacheKey);
     if (indicators) {
       this.stats.cacheHits++;
@@ -262,16 +186,13 @@ export class QueryOptimizer {
 
     this.stats.cacheMisses++;
 
-    // Fetch from database
     const tickerData = await getTickerData(symbol);
     indicators = tickerData?.indicators || null;
 
     if (indicators) {
-      // Cache the result
       this.cache.set(cacheKey, indicators, QUERY_CONFIG.CACHE_TTL.INDICATORS);
     }
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
     this.stats.queriesExecuted++;
@@ -279,17 +200,10 @@ export class QueryOptimizer {
     return indicators;
   }
 
-  /**
-   * Get daily candles for symbol with date range optimization
-   * @param {string} symbol - Stock symbol
-   * @param {number} days - Number of days to fetch (default: 250)
-   * @returns {Promise<Array>} Daily candles
-   */
-  async getDailyCandles(symbol, days = 250) {
+  async getDailyCandles(symbol: string, days = 250): Promise<Bar[]> {
     const cacheKey = `daily_candles:${symbol}:${days}`;
     const startTime = Date.now();
 
-    // Check cache first
     let candles = this.cache.get(cacheKey);
     if (candles) {
       this.stats.cacheHits++;
@@ -298,19 +212,15 @@ export class QueryOptimizer {
 
     this.stats.cacheMisses++;
 
-    // Fetch from database
     const tickerData = await getTickerData(symbol);
     candles = tickerData?.dailyCandles || [];
 
-    // Apply date range filter
     if (candles.length > days) {
       candles = candles.slice(-days);
     }
 
-    // Cache the result
     this.cache.set(cacheKey, candles, QUERY_CONFIG.CACHE_TTL.CANDLES);
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
     this.stats.queriesExecuted++;
@@ -318,17 +228,10 @@ export class QueryOptimizer {
     return candles;
   }
 
-  /**
-   * Get 5-minute candles for symbol
-   * @param {string} symbol - Stock symbol
-   * @param {number} days - Number of days to fetch
-   * @returns {Promise<Array>} 5m candles
-   */
-  async getFiveMinuteCandles(symbol, days = 10) {
+  async getFiveMinuteCandles(symbol: string, days = 10): Promise<Bar[]> {
     const cacheKey = `5m_candles:${symbol}:${days}`;
     const startTime = Date.now();
 
-    // Check cache first
     let candles = this.cache.get(cacheKey);
     if (candles) {
       this.stats.cacheHits++;
@@ -337,11 +240,9 @@ export class QueryOptimizer {
 
     this.stats.cacheMisses++;
 
-    // Fetch from database and flatten all daily candle arrays
     const tickerData = await getTickerData(symbol);
-    const dailyCandleArrays = tickerData?.fiveMinuteCandles || [];
+    const dailyCandleArrays = (tickerData as any)?.fiveMinuteCandles || [];
 
-    // Flatten and sort by date
     candles = [];
     for (const dayData of dailyCandleArrays) {
       if (dayData.candles) {
@@ -349,17 +250,13 @@ export class QueryOptimizer {
       }
     }
 
-    // Sort by timestamp
-    candles.sort((a, b) => a.timestamp - b.timestamp);
+    candles.sort((a: Bar, b: Bar) => a.timestamp - b.timestamp);
 
-    // Apply date range filter (rough approximation)
     const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
-    candles = candles.filter(candle => candle.timestamp > cutoffTime);
+    candles = candles.filter((candle: Bar) => candle.timestamp > cutoffTime);
 
-    // Cache the result
     this.cache.set(cacheKey, candles, QUERY_CONFIG.CACHE_TTL.CANDLES);
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
     this.stats.queriesExecuted++;
@@ -367,17 +264,10 @@ export class QueryOptimizer {
     return candles;
   }
 
-  /**
-   * Get strategy results for symbol
-   * @param {string} symbol - Stock symbol
-   * @param {string} strategy - Strategy name (orb5m, rvol, vrs, inmerelo)
-   * @returns {Promise<object|null>} Strategy results
-   */
-  async getStrategyResults(symbol, strategy) {
+  async getStrategyResults(symbol: string, strategy: string): Promise<StrategyResult | null> {
     const cacheKey = `strategy:${strategy}:${symbol}`;
     const startTime = Date.now();
 
-    // Check cache first
     let results = this.cache.get(cacheKey);
     if (results) {
       this.stats.cacheHits++;
@@ -386,16 +276,13 @@ export class QueryOptimizer {
 
     this.stats.cacheMisses++;
 
-    // Fetch from database
     const tickerData = await getTickerData(symbol);
     results = tickerData?.strategies?.[strategy] || null;
 
-    // Cache the result
     if (results) {
       this.cache.set(cacheKey, results, QUERY_CONFIG.CACHE_TTL.STRATEGIES);
     }
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
     this.stats.queriesExecuted++;
@@ -403,18 +290,11 @@ export class QueryOptimizer {
     return results;
   }
 
-  /**
-   * Batch get strategy results for multiple symbols
-   * @param {string[]} symbols - Stock symbols
-   * @param {string} strategy - Strategy name
-   * @returns {Promise<object>} Map of symbol -> strategy results
-   */
-  async getBatchStrategyResults(symbols, strategy) {
+  async getBatchStrategyResults(symbols: string[], strategy: string): Promise<Record<string, StrategyResult>> {
     const startTime = Date.now();
-    const results = {};
-    const uncachedSymbols = [];
+    const results: Record<string, StrategyResult> = {};
+    const uncachedSymbols: string[] = [];
 
-    // Check cache for each symbol
     for (const symbol of symbols) {
       const cacheKey = `strategy:${strategy}:${symbol}`;
       const strategyData = this.cache.get(cacheKey);
@@ -427,7 +307,6 @@ export class QueryOptimizer {
       }
     }
 
-    // Batch fetch uncached symbols
     if (uncachedSymbols.length > 0) {
       const tickerData = await getMultipleTickerData(uncachedSymbols);
 
@@ -445,23 +324,16 @@ export class QueryOptimizer {
       this.stats.queriesExecuted++;
     }
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
 
     return results;
   }
 
-  /**
-   * Get comprehensive ticker data for dashboard
-   * @param {string} symbol - Stock symbol
-   * @returns {Promise<object>} Comprehensive ticker data
-   */
-  async getComprehensiveTickerData(symbol) {
+  async getComprehensiveTickerData(symbol: string): Promise<any | null> {
     const cacheKey = `comprehensive:${symbol}`;
     const startTime = Date.now();
 
-    // Check cache first
     let data = this.cache.get(cacheKey);
     if (data) {
       this.stats.cacheHits++;
@@ -470,30 +342,25 @@ export class QueryOptimizer {
 
     this.stats.cacheMisses++;
 
-    // Fetch all required data
     const tickerData = await getTickerData(symbol);
 
     if (!tickerData) {
       return null;
     }
 
-    // Build comprehensive data object
     data = {
       symbol,
       quote: tickerData.currentQuote,
       indicators: tickerData.indicators,
       strategies: tickerData.strategies,
       lastUpdated: tickerData.lastUpdated,
-      dataQuality: tickerData.dataQuality,
-      // Add computed fields for dashboard
+      dataQuality: (tickerData as any).dataQuality,
       hasRecentData: this.hasRecentData(tickerData),
       marketStatus: this.getMarketStatusForSymbol(tickerData)
     };
 
-    // Cache the result (longer TTL to prevent VRS disappearing)
-    this.cache.set(cacheKey, data, 60000); // 1 minute
+    this.cache.set(cacheKey, data, 60000);
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
     this.stats.queriesExecuted++;
@@ -501,17 +368,12 @@ export class QueryOptimizer {
     return data;
   }
 
-  /**
-   * Get market overview for all symbols
-   * @param {string[]} symbols - Stock symbols
-   * @returns {Promise<object>} Market overview data
-   */
-  async getMarketOverview(symbols) {
+  async getMarketOverview(symbols: string[]): Promise<any> {
     const startTime = Date.now();
     const overview = {
-      quotes: {},
-      indicators: {},
-      strategies: {},
+      quotes: {} as Record<string, Quote>,
+      indicators: {} as Record<string, IndicatorData>,
+      strategies: {} as Record<string, Record<string, StrategyResult>>,
       summary: {
         totalSymbols: symbols.length,
         dataAvailable: 0,
@@ -519,26 +381,19 @@ export class QueryOptimizer {
       }
     };
 
-    // Batch fetch current quotes
     overview.quotes = await this.getCurrentQuotes(symbols);
 
-    // Count available data
     overview.summary.dataAvailable = Object.keys(overview.quotes).filter(
       symbol => overview.quotes[symbol] !== null
     ).length;
 
-    // Update stats
     const queryTime = Date.now() - startTime;
     this.updateQueryStats(queryTime);
 
     return overview;
   }
 
-  /**
-   * Invalidate cache for specific symbol
-   * @param {string} symbol - Stock symbol
-   */
-  invalidateSymbolCache(symbol) {
+  invalidateSymbolCache(symbol: string): void {
     const patterns = [
       `quote:${symbol}`,
       `indicators:${symbol}`,
@@ -556,53 +411,28 @@ export class QueryOptimizer {
     }
   }
 
-  /**
-   * Invalidate all strategy cache
-   */
-  invalidateStrategyCache() {
-    // This is a simple approach - in production, you might want to track cache keys more precisely
+  invalidateStrategyCache(): void {
     console.log('[QueryOptimizer] 🗑️ Clearing strategy cache...');
-    // For now, we'll let cache expire naturally
   }
 
-  /**
-   * Check if ticker has recent data
-   * @param {object} tickerData - Ticker data
-   * @returns {boolean} True if has recent data
-   */
-  hasRecentData(tickerData) {
+  hasRecentData(tickerData: TickerData): boolean {
     if (!tickerData?.currentQuote) return false;
-
     const now = Date.now();
     const quoteAge = now - tickerData.currentQuote.timestamp;
-
-    // Consider data recent if less than 5 minutes old
     return quoteAge < 5 * 60 * 1000;
   }
 
-  /**
-   * Get market status for symbol
-   * @param {object} tickerData - Ticker data
-   * @returns {string} Market status
-   */
-  getMarketStatusForSymbol(tickerData) {
+  getMarketStatusForSymbol(tickerData: TickerData): string {
     if (!tickerData?.currentQuote) return 'no_data';
-
     const now = Date.now();
     const quoteAge = now - tickerData.currentQuote.timestamp;
-
     if (quoteAge < 30 * 1000) return 'real_time';
     if (quoteAge < 5 * 60 * 1000) return 'recent';
     if (quoteAge < 60 * 60 * 1000) return 'stale';
     return 'very_stale';
   }
 
-  /**
-   * Update query statistics
-   * @param {number} queryTime - Query execution time in ms
-   */
-  updateQueryStats(queryTime) {
-    // Update running average
+  updateQueryStats(queryTime: number): void {
     const totalQueries = this.stats.queriesExecuted;
     if (totalQueries === 0) {
       this.stats.avgQueryTime = queryTime;
@@ -611,11 +441,7 @@ export class QueryOptimizer {
     }
   }
 
-  /**
-   * Get query optimizer statistics
-   * @returns {object} Performance statistics
-   */
-  getStats() {
+  getStats(): any {
     const cacheStats = this.cache.getStats();
     const cacheHitRate = this.stats.cacheHits + this.stats.cacheMisses > 0
       ? (this.stats.cacheHits / (this.stats.cacheHits + this.stats.cacheMisses)) * 100
@@ -636,10 +462,7 @@ export class QueryOptimizer {
     };
   }
 
-  /**
-   * Clear all cache and reset stats
-   */
-  reset() {
+  reset(): void {
     this.cache.clear();
     this.stats = {
       queriesExecuted: 0,
@@ -650,27 +473,16 @@ export class QueryOptimizer {
   }
 }
 
-// Global query optimizer instance
-let globalOptimizer = null;
+let globalOptimizer: QueryOptimizer | null = null;
 
-/**
- * Get global query optimizer instance
- * @returns {QueryOptimizer} Query optimizer instance
- */
-export const getQueryOptimizer = () => {
+export const getQueryOptimizer = (): QueryOptimizer => {
   if (!globalOptimizer) {
     globalOptimizer = new QueryOptimizer();
   }
   return globalOptimizer;
 };
 
-/**
- * Execute optimized query
- * @param {string} queryType - Type of query
- * @param {any} params - Query parameters
- * @returns {Promise<any>} Query results
- */
-export const executeOptimizedQuery = async (queryType, ...params) => {
+export const executeOptimizedQuery = async (queryType: string, ...params: any[]): Promise<any> => {
   const optimizer = getQueryOptimizer();
 
   switch (queryType) {
