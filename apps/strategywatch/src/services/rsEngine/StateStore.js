@@ -491,7 +491,7 @@ export class RSStateStore {
         throw new Error(`Invalid data for symbol ${symbol}`);
       }
 
-      if (!symbolData.hasOwnProperty('value') && !symbolData.hasOwnProperty('overallRS')) {
+      if (!Object.prototype.hasOwnProperty.call(symbolData, 'value') && !Object.prototype.hasOwnProperty.call(symbolData, 'overallRS')) {
         throw new Error(`Missing required RS value for symbol ${symbol}`);
       }
     }

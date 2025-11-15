@@ -1,3 +1,4 @@
+import React, { useCallback } from 'react';
 import { UnifiedDataProvider } from './context/UnifiedDataProvider';
 import { useUnifiedData } from './context/UnifiedDataProvider';
 import Header from './components/Header';
@@ -27,6 +28,9 @@ function AppContent() {
     migrationStatus,
     getPerformanceStats
   } = useUnifiedData();
+
+  // Memoized timestamp to avoid impure function calls
+  const getCurrentTimestamp = useCallback(() => Date.now(), []);
 
   // Get performance stats for debugging (only in development)
   const performanceStats = import.meta.env.DEV ? getPerformanceStats() : null;
@@ -187,7 +191,7 @@ VITE_ALPACA_DATA_FEED=iex
         vrs1m: vrsObject.vrs1m?.value || vrsObject.vrs1m || null, // 1-minute VRS
         vrs5m: vrsObject.vrs5m?.value || vrsObject.vrs5m || null, // 5-minute VRS
         vrs15m: vrsObject.vrs15m?.value || vrsObject.vrs15m || null, // 15-minute VRS
-        timestamp: vrsObject.timestamp || Date.now()
+        timestamp: vrsObject.timestamp || getCurrentTimestamp()
       };
     } else {
       // Provide empty VRS data to prevent undefined errors
